@@ -8,510 +8,251 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow:wght@400;500;600;700;800&family=Barlow+Condensed:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
-  :root {
-    --bg:        #0a0c10;
-    --surface:   #111520;
-    --panel:     #161b28;
-    --border:    #252d40;
-    --border-hi: #3a4560;
-    --text:      #cdd5e0;
-    --muted:     #5a6480;
-    --a:         #3dffa0;   /* team A: acid green */
-    --a-dim:     #1a3d2a;
-    --b:         #ff4d6a;   /* team B: hot red */
-    --b-dim:     #3d1520;
-    --accent:    #5b8fff;   /* controls / system */
-    --accent-dim:#172040;
-    --gold:      #ffc94d;
-    --purple:    #b57bff;
-    --purple-dim:#221040;
-    --warn:      #ff9a3d;
-  }
+:root {
+  --bg:#0a0c10; --surface:#111520; --panel:#161b28;
+  --border:#252d40; --border-hi:#3a4560;
+  --text:#cdd5e0; --muted:#5a6480;
+  --a:#3dffa0; --a-dim:#1a3d2a;
+  --b:#ff4d6a; --b-dim:#3d1520;
+  --accent:#5b8fff; --accent-dim:#172040;
+  --gold:#ffc94d; --purple:#b57bff; --purple-dim:#221040;
+  --warn:#ff9a3d;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{font-size:14px}
+body{background:var(--bg);color:var(--text);font-family:'Barlow',sans-serif;min-height:100vh}
+::-webkit-scrollbar{width:6px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--border-hi);border-radius:3px}
+.app{max-width:1280px;margin:0 auto;padding:24px 16px 64px}
 
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+/* header */
+.site-header{display:flex;align-items:center;gap:16px;border-bottom:1px solid var(--border);padding-bottom:20px;margin-bottom:24px}
+.logo{font-family:'Share Tech Mono',monospace;font-size:1.1rem;color:var(--accent);background:var(--accent-dim);border:1px solid var(--accent);padding:4px 10px;border-radius:4px;letter-spacing:.08em}
+.site-header h1{font-family:'Barlow Condensed',sans-serif;font-size:1.9rem;font-weight:700;letter-spacing:.04em;color:#edf0f7;text-transform:uppercase}
+.site-header .sub{font-size:.75rem;color:var(--muted);font-family:'Share Tech Mono',monospace;margin-top:2px}
 
-  html { font-size: 14px; }
+/* phase bar */
+.phase-bar{display:flex;gap:0;margin-bottom:20px;border:1px solid var(--border);border-radius:8px;overflow:hidden}
+.phase-step{flex:1;text-align:center;padding:8px 4px;font-family:'Barlow Condensed',sans-serif;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);background:var(--surface);border-right:1px solid var(--border);transition:all .2s}
+.phase-step:last-child{border-right:none}
+.phase-step.active{background:var(--accent-dim);color:var(--accent)}
+.phase-step.done{background:var(--panel);color:var(--border-hi)}
 
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: 'Barlow', sans-serif;
-    min-height: 100vh;
-  }
+/* fleet grid */
+.fleet-grid{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px}
+@media(max-width:800px){.fleet-grid{grid-template-columns:1fr}}
 
-  /* ── scrollbar ── */
-  ::-webkit-scrollbar { width: 6px; }
-  ::-webkit-scrollbar-track { background: var(--bg); }
-  ::-webkit-scrollbar-thumb { background: var(--border-hi); border-radius: 3px; }
+/* team panel */
+.team-panel{background:var(--panel);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.team-header{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border)}
+.team-name{font-family:'Barlow Condensed',sans-serif;font-size:1.25rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em}
+.team-role{font-family:'Share Tech Mono',monospace;font-size:.7rem;padding:2px 8px;border-radius:3px;border:1px solid}
+.team-a .team-name{color:var(--a)}
+.team-a .team-role{color:var(--a);border-color:var(--a);background:var(--a-dim)}
+.team-b .team-name{color:var(--b)}
+.team-b .team-role{color:var(--b);border-color:var(--b);background:var(--b-dim)}
+.ship-list{padding:14px 14px 8px;display:flex;flex-direction:column;gap:10px}
 
-  /* ── layout ── */
-  .app { max-width: 1280px; margin: 0 auto; padding: 24px 16px 64px; }
+/* ship card */
+.ship-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;position:relative;transition:border-color .15s}
+.ship-card:hover{border-color:var(--border-hi)}
+.remove-btn{position:absolute;top:10px;right:10px;background:none;border:none;cursor:pointer;color:var(--muted);font-size:1.1rem;line-height:1;transition:color .15s}
+.remove-btn:hover{color:var(--b)}
 
-  /* ── header ── */
-  .site-header {
-    display: flex; align-items: center; gap: 16px;
-    border-bottom: 1px solid var(--border);
-    padding-bottom: 20px; margin-bottom: 28px;
-  }
-  .site-header .logo {
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 1.15rem; color: var(--accent);
-    letter-spacing: .08em;
-    background: var(--accent-dim);
-    border: 1px solid var(--accent);
-    padding: 4px 10px; border-radius: 4px;
-  }
-  .site-header h1 {
-    font-family: 'Barlow Condensed', sans-serif;
-    font-size: 1.9rem; font-weight: 700;
-    letter-spacing: .04em; color: #edf0f7;
-    text-transform: uppercase;
-  }
-  .site-header .sub {
-    font-size: .78rem; color: var(--muted);
-    font-family: 'Share Tech Mono', monospace;
-    margin-top: 2px;
-  }
+/* form elements */
+.input-grid{display:grid;gap:8px;margin-bottom:8px}
+.g1{grid-template-columns:1fr}
+.g2{grid-template-columns:1fr 1fr}
+.g3{grid-template-columns:repeat(3,1fr)}
+.g4{grid-template-columns:repeat(4,1fr)}
+.g5{grid-template-columns:repeat(5,1fr)}
+.gauto{grid-template-columns:repeat(auto-fill,minmax(100px,1fr))}
+.field{display:flex;flex-direction:column;gap:4px}
+.field label{font-size:.65rem;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--muted)}
+.field input,.field select{background:var(--panel);border:1px solid var(--border);color:var(--text);border-radius:5px;padding:6px 8px;font-family:'Share Tech Mono',monospace;font-size:.82rem;width:100%;outline:none;transition:border-color .15s;-moz-appearance:textfield}
+.field input::-webkit-outer-spin-button,.field input::-webkit-inner-spin-button{-webkit-appearance:none}
+.field input:focus,.field select:focus{border-color:var(--accent)}
+.field input.name-input{font-family:'Barlow',sans-serif;font-size:.9rem;font-weight:500;color:#edf0f7}
+.divider{height:1px;background:var(--border);margin:10px 0}
+.section-label{font-family:'Share Tech Mono',monospace;font-size:.68rem;color:var(--purple);margin-bottom:6px}
 
-  /* ── fleet grid ── */
-  .fleet-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 20px;
-    margin-bottom: 20px;
-  }
-  @media (max-width: 800px) { .fleet-grid { grid-template-columns: 1fr; } }
+.add-ship-btn{margin:0 14px 14px;width:calc(100% - 28px);padding:9px;border-radius:7px;border:1px dashed var(--border-hi);background:none;color:var(--muted);font-family:'Barlow',sans-serif;font-size:.82rem;font-weight:600;cursor:pointer;transition:all .15s;letter-spacing:.03em}
+.add-ship-btn:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-dim)}
 
-  /* ── team panel ── */
-  .team-panel {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    overflow: hidden;
-  }
-  .team-header {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 14px 18px;
-    border-bottom: 1px solid var(--border);
-  }
-  .team-header .team-name {
-    font-family: 'Barlow Condensed', sans-serif;
-    font-size: 1.25rem; font-weight: 700;
-    text-transform: uppercase; letter-spacing: .08em;
-  }
-  .team-header .team-role {
-    font-family: 'Share Tech Mono', monospace;
-    font-size: .7rem; padding: 2px 8px;
-    border-radius: 3px; border: 1px solid;
-  }
-  .team-a .team-name { color: var(--a); }
-  .team-a .team-role { color: var(--a); border-color: var(--a); background: var(--a-dim); }
-  .team-b .team-name { color: var(--b); }
-  .team-b .team-role { color: var(--b); border-color: var(--b); background: var(--b-dim); }
+/* save/load bar */
+.save-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:12px 16px;margin-bottom:20px}
+.save-bar span{font-family:'Share Tech Mono',monospace;font-size:.72rem;color:var(--muted);margin-right:4px}
+.save-bar input{background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:5px;padding:5px 10px;font-family:'Barlow',sans-serif;font-size:.82rem;outline:none;width:160px;transition:border-color .15s}
+.save-bar input:focus{border-color:var(--accent)}
+#slot-list{display:flex;flex-wrap:wrap;gap:6px}
+.slot-chip{display:flex;align-items:center;gap:0;background:var(--surface);border:1px solid var(--border-hi);border-radius:5px;overflow:hidden}
+.slot-chip button{background:none;border:none;cursor:pointer;font-family:'Share Tech Mono',monospace;font-size:.72rem;color:var(--text);padding:4px 8px;transition:background .15s}
+.slot-chip button:hover{background:var(--accent-dim);color:var(--accent)}
+.slot-chip .del-slot{color:var(--muted);padding:4px 6px;border-left:1px solid var(--border)}
+.slot-chip .del-slot:hover{background:var(--b-dim);color:var(--b)}
 
-  .ship-list { padding: 14px 14px 8px; display: flex; flex-direction: column; gap: 10px; }
+/* control bar */
+.control-bar{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;padding:16px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border);margin-bottom:20px}
+.btn{font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;padding:9px 22px;border-radius:6px;border:1px solid transparent;cursor:pointer;transition:all .15s}
+.btn:disabled{opacity:.35;cursor:not-allowed}
+.btn-accent{background:var(--accent);color:#060810;border-color:var(--accent)}
+.btn-accent:hover:not(:disabled){background:#7aaaff}
+.btn-green{background:var(--a-dim);color:var(--a);border-color:var(--a)}
+.btn-green:hover:not(:disabled){background:#1f5035}
+.btn-purple{background:var(--purple-dim);color:var(--purple);border-color:var(--purple)}
+.btn-purple:hover:not(:disabled){background:#331a5a}
+.btn-ghost{background:var(--surface);color:var(--muted);border-color:var(--border-hi)}
+.btn-ghost:hover:not(:disabled){color:var(--text);border-color:var(--text)}
+.btn-warn{background:#2a1008;color:var(--warn);border-color:var(--warn)}
+.btn-warn:hover:not(:disabled){background:#3d1a0a}
+.btn-danger{background:#2a0810;color:var(--b);border-color:var(--b)}
+.btn-danger:hover:not(:disabled){background:var(--b-dim)}
+.btn-sm{padding:5px 12px;font-size:.82rem}
 
-  /* ── ship card ── */
-  .ship-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 14px;
-    position: relative;
-    transition: border-color .15s;
-  }
-  .ship-card:hover { border-color: var(--border-hi); }
+.hidden{display:none!important}
 
-  .ship-card .remove-btn {
-    position: absolute; top: 10px; right: 10px;
-    background: none; border: none; cursor: pointer;
-    color: var(--muted); font-size: 1.1rem; line-height: 1;
-    transition: color .15s;
-  }
-  .ship-card .remove-btn:hover { color: var(--b); }
+/* mid-turn panel */
+.mid-turn-panel{background:var(--panel);border:1px solid var(--purple);border-radius:10px;padding:18px;margin-bottom:20px}
+.mid-turn-panel h3{font-family:'Barlow Condensed',sans-serif;font-size:1.1rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--purple);margin-bottom:14px}
+.ability-row{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;background:var(--surface);border:1px solid var(--border);border-radius:7px;padding:10px 12px;margin-bottom:8px}
+.ability-row .field{flex:1;min-width:88px}
+.ability-row .row-remove{background:none;border:none;cursor:pointer;color:var(--muted);font-size:1.1rem;padding:6px;transition:color .15s;align-self:flex-end}
+.ability-row .row-remove:hover{color:var(--b)}
 
-  .card-section-label {
-    font-family: 'Barlow Condensed', sans-serif;
-    font-size: .7rem; font-weight: 600;
-    text-transform: uppercase; letter-spacing: .1em;
-    color: var(--muted); margin-bottom: 8px;
-  }
+/* log */
+.log-wrapper{background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.log-header{display:flex;align-items:center;justify-content:space-between;padding:12px 18px;background:var(--panel);border-bottom:1px solid var(--border)}
+.log-header-left{display:flex;align-items:center;gap:10px}
+.log-header h3{font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+.turn-badge{font-family:'Share Tech Mono',monospace;font-size:.75rem;color:var(--accent);background:var(--accent-dim);border:1px solid var(--accent);padding:2px 10px;border-radius:3px}
+.turn-counter{font-family:'Share Tech Mono',monospace;font-size:.72rem;color:var(--muted);padding:2px 8px}
+#battle-log{font-family:'Share Tech Mono',monospace;font-size:.78rem;line-height:1.7;padding:16px 18px;height:440px;overflow-y:auto}
 
-  .input-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
-    gap: 8px;
-    margin-bottom: 10px;
-  }
-  .input-grid.full { grid-template-columns: 1fr; }
-  .input-grid.two  { grid-template-columns: 1fr 1fr; }
-  .input-grid.four { grid-template-columns: repeat(4, 1fr); }
-  .input-grid.three{ grid-template-columns: repeat(3, 1fr); }
+/* log types */
+.log-system{color:var(--accent);display:block;border-bottom:1px solid var(--border);padding:2px 0;margin:2px 0}
+.log-header-line{color:var(--gold);font-weight:bold;display:block;border-top:1px solid var(--border);border-bottom:1px solid var(--border);padding:4px 0;margin:6px 0;background:#1a1500}
+.log-teamA{color:var(--a);display:block}
+.log-teamB{color:var(--b);display:block}
+.log-neutral{color:var(--muted);display:block;font-style:italic}
+.log-counter{color:var(--gold);display:block}
+.log-special{color:var(--purple);display:block}
+.log-midturn{color:#a0c4ff;display:block}
+.log-info{color:var(--text);display:block}
+.log-victory{display:block;text-align:center;color:var(--a);font-size:1.1em;font-weight:bold;border:1px solid var(--a);background:var(--a-dim);padding:10px;margin:10px 0;border-radius:6px}
+.log-defeat{display:block;text-align:center;color:var(--b);font-size:1.1em;font-weight:bold;border:1px solid var(--b);background:var(--b-dim);padding:10px;margin:10px 0;border-radius:6px}
+.log-draw{display:block;text-align:center;color:var(--warn);font-size:1.1em;font-weight:bold;border:1px solid var(--warn);background:#1e1000;padding:10px;margin:10px 0;border-radius:6px}
+.log-stalemate{display:block;text-align:center;color:var(--muted);font-size:1em;border:1px solid var(--border-hi);background:var(--panel);padding:10px;margin:10px 0;border-radius:6px}
+.log-indent{padding-left:16px}
+.log-indent2{padding-left:32px}
 
-  .field { display: flex; flex-direction: column; gap: 4px; }
-  .field label {
-    font-size: .68rem; font-weight: 600;
-    text-transform: uppercase; letter-spacing: .07em;
-    color: var(--muted);
-  }
-  .field input, .field select {
-    background: var(--panel);
-    border: 1px solid var(--border);
-    color: var(--text);
-    border-radius: 5px;
-    padding: 6px 8px;
-    font-family: 'Share Tech Mono', monospace;
-    font-size: .82rem;
-    width: 100%;
-    outline: none;
-    transition: border-color .15s;
-    -moz-appearance: textfield;
-  }
-  .field input::-webkit-outer-spin-button,
-  .field input::-webkit-inner-spin-button { -webkit-appearance: none; }
-  .field input:focus, .field select:focus { border-color: var(--accent); }
-  .field input.name-input {
-    font-family: 'Barlow', sans-serif;
-    font-size: .9rem; font-weight: 500;
-    color: #edf0f7;
-  }
+/* turn summary */
+.turn-summary{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:12px 16px;margin-bottom:8px}
+.turn-summary h4{font-family:'Barlow Condensed',sans-serif;font-size:.85rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gold);margin-bottom:8px}
+.summary-row{display:flex;justify-content:space-between;font-family:'Share Tech Mono',monospace;font-size:.75rem;color:var(--text);padding:2px 0;border-bottom:1px solid var(--border)}
+.summary-row:last-child{border-bottom:none}
+.summary-a{color:var(--a)}
+.summary-b{color:var(--b)}
 
-  .divider {
-    height: 1px; background: var(--border);
-    margin: 12px 0;
-  }
-
-  .ability-label {
-    font-family: 'Share Tech Mono', monospace;
-    font-size: .7rem; color: var(--purple);
-    margin-bottom: 8px;
-  }
-
-  /* add ship button */
-  .add-ship-btn {
-    margin: 0 14px 14px;
-    width: calc(100% - 28px);
-    padding: 9px;
-    border-radius: 7px;
-    border: 1px dashed var(--border-hi);
-    background: none;
-    color: var(--muted);
-    font-family: 'Barlow', sans-serif;
-    font-size: .82rem; font-weight: 600;
-    cursor: pointer;
-    transition: all .15s;
-    letter-spacing: .03em;
-  }
-  .add-ship-btn:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-dim); }
-
-  /* ── control bar ── */
-  .control-bar {
-    display: flex; flex-wrap: wrap; gap: 10px;
-    justify-content: center;
-    padding: 18px 0;
-    border-top: 1px solid var(--border);
-    border-bottom: 1px solid var(--border);
-    margin-bottom: 20px;
-  }
-
-  .btn {
-    font-family: 'Barlow Condensed', sans-serif;
-    font-size: 1rem; font-weight: 700;
-    text-transform: uppercase; letter-spacing: .06em;
-    padding: 9px 22px; border-radius: 6px;
-    border: 1px solid transparent;
-    cursor: pointer;
-    transition: all .15s;
-  }
-  .btn:disabled { opacity: .35; cursor: not-allowed; }
-  .btn-accent  { background: var(--accent); color: #060810; border-color: var(--accent); }
-  .btn-accent:hover:not(:disabled)  { background: #7aaaff; border-color: #7aaaff; }
-  .btn-green   { background: var(--a-dim); color: var(--a); border-color: var(--a); }
-  .btn-green:hover:not(:disabled)   { background: #1f5035; }
-  .btn-purple  { background: var(--purple-dim); color: var(--purple); border-color: var(--purple); }
-  .btn-purple:hover:not(:disabled)  { background: #331a5a; }
-  .btn-ghost   { background: var(--surface); color: var(--muted); border-color: var(--border-hi); }
-  .btn-ghost:hover:not(:disabled)   { color: var(--text); border-color: var(--text); }
-  .btn-warn    { background: #2a1008; color: var(--warn); border-color: var(--warn); }
-  .btn-warn:hover:not(:disabled)    { background: #3d1a0a; }
-  .btn-danger  { background: #2a0810; color: var(--b); border-color: var(--b); }
-  .btn-danger:hover:not(:disabled)  { background: var(--b-dim); }
-
-  .hidden { display: none !important; }
-
-  /* ── mid-turn panel ── */
-  .mid-turn-panel {
-    background: var(--panel);
-    border: 1px solid var(--purple);
-    border-radius: 10px;
-    padding: 18px;
-    margin-bottom: 20px;
-  }
-  .mid-turn-panel h3 {
-    font-family: 'Barlow Condensed', sans-serif;
-    font-size: 1.1rem; font-weight: 700;
-    text-transform: uppercase; letter-spacing: .06em;
-    color: var(--purple); margin-bottom: 14px;
-  }
-
-  .ability-row {
-    display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-end;
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 7px;
-    padding: 10px 12px;
-    margin-bottom: 8px;
-  }
-  .ability-row .field { flex: 1; min-width: 90px; }
-  .ability-row .remove-btn {
-    background: none; border: none; cursor: pointer;
-    color: var(--muted); font-size: 1.1rem;
-    padding: 6px; transition: color .15s;
-    align-self: flex-end;
-  }
-  .ability-row .remove-btn:hover { color: var(--b); }
-
-  /* ── battle log ── */
-  .log-wrapper {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 10px;
-    overflow: hidden;
-  }
-  .log-header {
-    display: flex; align-items: center; justify-content: space-between;
-    padding: 12px 18px;
-    background: var(--panel);
-    border-bottom: 1px solid var(--border);
-  }
-  .log-header h3 {
-    font-family: 'Barlow Condensed', sans-serif;
-    font-size: 1rem; font-weight: 700;
-    text-transform: uppercase; letter-spacing: .08em;
-    color: var(--muted);
-  }
-  .log-header .turn-badge {
-    font-family: 'Share Tech Mono', monospace;
-    font-size: .75rem; color: var(--accent);
-    background: var(--accent-dim);
-    border: 1px solid var(--accent);
-    padding: 2px 10px; border-radius: 3px;
-  }
-
-  #battle-log {
-    font-family: 'Share Tech Mono', monospace;
-    font-size: .78rem;
-    line-height: 1.7;
-    padding: 16px 18px;
-    height: 420px;
-    overflow-y: auto;
-  }
-
-  /* log entry types */
-  .log-system  { color: var(--accent); display: block; border-bottom: 1px solid var(--border); padding: 3px 0; margin: 2px 0; }
-  .log-header-line { color: var(--gold); font-weight: bold; display: block; border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); padding: 4px 0; margin: 6px 0; background: #1a1500; }
-  .log-teamA   { color: var(--a); display: block; }
-  .log-teamB   { color: var(--b); display: block; }
-  .log-neutral { color: var(--muted); display: block; font-style: italic; }
-  .log-counter { color: var(--gold); display: block; }
-  .log-special { color: var(--purple); display: block; }
-  .log-midturn { color: #a0c4ff; display: block; }
-  .log-info    { color: var(--text); display: block; }
-  .log-victory {
-    display: block; text-align: center;
-    color: var(--a); font-size: 1.1em; font-weight: bold;
-    border: 1px solid var(--a);
-    background: var(--a-dim);
-    padding: 10px; margin: 10px 0; border-radius: 6px;
-  }
-  .log-defeat {
-    display: block; text-align: center;
-    color: var(--b); font-size: 1.1em; font-weight: bold;
-    border: 1px solid var(--b);
-    background: var(--b-dim);
-    padding: 10px; margin: 10px 0; border-radius: 6px;
-  }
-  .log-draw {
-    display: block; text-align: center;
-    color: var(--warn); font-size: 1.1em; font-weight: bold;
-    border: 1px solid var(--warn);
-    background: #1e1000;
-    padding: 10px; margin: 10px 0; border-radius: 6px;
-  }
-  .log-stalemate {
-    display: block; text-align: center;
-    color: var(--muted); font-size: 1.1em;
-    border: 1px solid var(--border-hi);
-    background: var(--panel);
-    padding: 10px; margin: 10px 0; border-radius: 6px;
-  }
-  .log-indent  { padding-left: 16px; }
-  .log-indent2 { padding-left: 32px; }
-
-  /* ── edit stats modal ── */
-  .modal-overlay {
-    position: fixed; inset: 0;
-    background: rgba(0,0,0,.8);
-    display: flex; align-items: center; justify-content: center;
-    z-index: 100; padding: 16px;
-  }
-  .modal-box {
-    background: var(--panel);
-    border: 1px solid var(--border-hi);
-    border-radius: 12px;
-    width: 100%; max-width: 900px;
-    max-height: 90vh;
-    display: flex; flex-direction: column;
-    overflow: hidden;
-  }
-  .modal-head {
-    padding: 18px 20px;
-    border-bottom: 1px solid var(--border);
-    display: flex; align-items: center; justify-content: space-between;
-  }
-  .modal-head h2 {
-    font-family: 'Barlow Condensed', sans-serif;
-    font-size: 1.3rem; font-weight: 700;
-    text-transform: uppercase; letter-spacing: .06em;
-    color: var(--gold);
-  }
-  .modal-body { overflow-y: auto; padding: 18px 20px; flex: 1; }
-  .modal-foot {
-    padding: 14px 20px;
-    border-top: 1px solid var(--border);
-    display: flex; justify-content: flex-end; gap: 10px;
-    background: var(--surface);
-  }
-
-  .edit-card {
-    background: var(--surface);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 14px;
-    margin-bottom: 14px;
-  }
-  .edit-card h4 {
-    font-family: 'Barlow Condensed', sans-serif;
-    font-size: 1rem; font-weight: 700;
-    text-transform: uppercase; letter-spacing: .06em;
-    margin-bottom: 12px;
-  }
-
-  /* ── reset confirm modal ── */
-  .confirm-box {
-    background: var(--panel);
-    border: 1px solid var(--b);
-    border-radius: 12px;
-    width: 100%; max-width: 420px;
-    padding: 28px 24px;
-    text-align: center;
-  }
-  .confirm-box h2 {
-    font-family: 'Barlow Condensed', sans-serif;
-    font-size: 1.4rem; font-weight: 700;
-    color: var(--b); margin-bottom: 10px;
-  }
-  .confirm-box p {
-    color: var(--text); margin-bottom: 22px; font-size: .9rem; line-height: 1.5;
-  }
-  .confirm-box .actions { display: flex; gap: 10px; justify-content: center; }
-
-  /* ── phase indicator ── */
-  .phase-bar {
-    display: flex; gap: 0; margin-bottom: 20px;
-    border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
-  }
-  .phase-step {
-    flex: 1; text-align: center; padding: 8px 4px;
-    font-family: 'Barlow Condensed', sans-serif;
-    font-size: .75rem; font-weight: 700;
-    text-transform: uppercase; letter-spacing: .06em;
-    color: var(--muted); background: var(--surface);
-    border-right: 1px solid var(--border);
-    transition: all .2s;
-  }
-  .phase-step:last-child { border-right: none; }
-  .phase-step.active { background: var(--accent-dim); color: var(--accent); }
-  .phase-step.done   { background: var(--panel); color: var(--border-hi); }
-
-  /* tooltip-ish */
-  abbr { text-decoration: none; cursor: help; border-bottom: 1px dotted var(--muted); }
+/* modals */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.8);display:flex;align-items:center;justify-content:center;z-index:100;padding:16px}
+.modal-box{background:var(--panel);border:1px solid var(--border-hi);border-radius:12px;width:100%;max-width:900px;max-height:90vh;display:flex;flex-direction:column;overflow:hidden}
+.modal-head{padding:18px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+.modal-head h2{font-family:'Barlow Condensed',sans-serif;font-size:1.3rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--gold)}
+.modal-body{overflow-y:auto;padding:18px 20px;flex:1}
+.modal-foot{padding:14px 20px;border-top:1px solid var(--border);display:flex;justify-content:flex-end;gap:10px;background:var(--surface)}
+.edit-card{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:14px}
+.edit-card h4{font-family:'Barlow Condensed',sans-serif;font-size:1rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px}
+.confirm-box{background:var(--panel);border:1px solid var(--b);border-radius:12px;width:100%;max-width:420px;padding:28px 24px;text-align:center}
+.confirm-box h2{font-family:'Barlow Condensed',sans-serif;font-size:1.4rem;font-weight:700;color:var(--b);margin-bottom:10px}
+.confirm-box p{color:var(--text);margin-bottom:22px;font-size:.9rem;line-height:1.5}
+.confirm-box .actions{display:flex;gap:10px;justify-content:center}
+abbr{text-decoration:none;cursor:help;border-bottom:1px dotted var(--muted)}
 </style>
 </head>
 <body>
 <div class="app">
 
-  <!-- Header -->
-  <header class="site-header">
-    <div>
-      <div class="logo">FCS v2</div>
-    </div>
-    <div>
-      <h1>Fleet Combat Simulator</h1>
-      <div class="sub">// modern combat system — turn-based tactical engine</div>
-    </div>
-  </header>
-
-  <!-- Phase indicator -->
-  <div class="phase-bar" id="phase-bar">
-    <div class="phase-step active" id="phase-setup">Setup</div>
-    <div class="phase-step" id="phase-prebattle">Pre-Battle</div>
-    <div class="phase-step" id="phase-attack">Attack Phase</div>
-    <div class="phase-step" id="phase-aftermath">Aftermath</div>
-    <div class="phase-step" id="phase-mid-turn">Mid-Turn</div>
+<header class="site-header">
+  <div><div class="logo">FCS v2</div></div>
+  <div>
+    <h1>Fleet Combat Simulator</h1>
+    <div class="sub">// modern combat system — turn-based tactical engine</div>
   </div>
+</header>
 
-  <!-- Fleet grid -->
-  <div class="fleet-grid">
-    <!-- Team A -->
-    <div class="team-panel team-a">
-      <div class="team-header">
-        <span class="team-name">Team A</span>
-        <span class="team-role">Defender</span>
-      </div>
-      <div id="team-a-ships" class="ship-list"></div>
-      <button class="add-ship-btn" onclick="addShipGroup('A')">+ Add Ship Group</button>
+<!-- Phase bar -->
+<div class="phase-bar" id="phase-bar">
+  <div class="phase-step active" id="ph-setup">Setup</div>
+  <div class="phase-step" id="ph-prebattle">Pre-Battle</div>
+  <div class="phase-step" id="ph-attack">Attack Phase</div>
+  <div class="phase-step" id="ph-aftermath">Aftermath</div>
+  <div class="phase-step" id="ph-midturn">Mid-Turn</div>
+</div>
+
+<!-- Save / Load bar -->
+<div class="save-bar">
+  <span>CONFIGS //</span>
+  <input type="text" id="save-name" placeholder="Config name…">
+  <button class="btn btn-ghost btn-sm" onclick="saveConfig()">Save</button>
+  <div id="slot-list"></div>
+</div>
+
+<!-- Fleet grid -->
+<div class="fleet-grid">
+  <div class="team-panel team-a">
+    <div class="team-header">
+      <span class="team-name">Team A</span>
+      <span class="team-role">Defender</span>
     </div>
-
-    <!-- Team B -->
-    <div class="team-panel team-b">
-      <div class="team-header">
-        <span class="team-name">Team B</span>
-        <span class="team-role">Invader</span>
-      </div>
-      <div id="team-b-ships" class="ship-list"></div>
-      <button class="add-ship-btn" onclick="addShipGroup('B')">+ Add Ship Group</button>
+    <div id="team-a-ships" class="ship-list"></div>
+    <button class="add-ship-btn" onclick="addShipGroup('A')">+ Add Ship Group</button>
+  </div>
+  <div class="team-panel team-b">
+    <div class="team-header">
+      <span class="team-name">Team B</span>
+      <span class="team-role">Invader</span>
     </div>
+    <div id="team-b-ships" class="ship-list"></div>
+    <button class="add-ship-btn" onclick="addShipGroup('B')">+ Add Ship Group</button>
   </div>
+</div>
 
-  <!-- Mid-Turn Abilities Panel -->
-  <div id="mid-turn-panel" class="mid-turn-panel hidden">
-    <h3>⚡ Mid-Turn Abilities</h3>
-    <div id="ability-rows"></div>
-    <button class="btn btn-purple" onclick="addAbilityRow()" style="font-size:.85rem;padding:7px 16px;">+ Add Ability</button>
-  </div>
+<!-- Mid-turn panel -->
+<div id="mid-turn-panel" class="mid-turn-panel hidden">
+  <h3>⚡ Mid-Turn Abilities</h3>
+  <div id="ability-rows"></div>
+  <button class="btn btn-purple btn-sm" onclick="addAbilityRow()">+ Add Ability</button>
+</div>
 
-  <!-- Controls -->
-  <div class="control-bar" id="control-bar">
-    <button id="btn-start"      class="btn btn-accent"  onclick="startBattle()">Start Battle</button>
-    <button id="btn-next-turn"  class="btn btn-green hidden"  onclick="runAttackPhase()">▶ Attack Phase</button>
-    <button id="btn-aftermath"  class="btn btn-green hidden"  onclick="runAftermath()">Apply Losses</button>
-    <button id="btn-use-mid"    class="btn btn-purple hidden" onclick="useMidTurnAbilities()">Fire Abilities</button>
-    <button id="btn-skip-mid"   class="btn btn-ghost hidden"  onclick="skipMidTurn()">Skip Mid-Turn</button>
-    <button id="btn-change"     class="btn btn-warn hidden"   onclick="openEditModal()">Edit Stats</button>
-    <button id="btn-reset"      class="btn btn-danger hidden" onclick="openResetModal()">Reset</button>
-  </div>
+<!-- Controls -->
+<div class="control-bar">
+  <button id="btn-start"     class="btn btn-accent"           onclick="startBattle()">Start Battle</button>
+  <button id="btn-attack"    class="btn btn-green hidden"     onclick="runAttackPhase()">▶ Attack Phase</button>
+  <button id="btn-aftermath" class="btn btn-green hidden"     onclick="runAftermath()">Apply Losses</button>
+  <button id="btn-use-mid"   class="btn btn-purple hidden"    onclick="useMidTurnAbilities()">Fire Abilities</button>
+  <button id="btn-skip-mid"  class="btn btn-ghost hidden"     onclick="skipMidTurn()">Skip Mid-Turn</button>
+  <button id="btn-change"    class="btn btn-warn hidden"      onclick="openEditModal()">Edit Stats</button>
+  <button id="btn-reset"     class="btn btn-danger hidden"    onclick="openResetModal()">Reset</button>
+</div>
 
-  <!-- Battle Log -->
-  <div class="log-wrapper">
-    <div class="log-header">
+<!-- Battle log -->
+<div class="log-wrapper">
+  <div class="log-header">
+    <div class="log-header-left">
       <h3>Tactical Battle Log</h3>
       <span class="turn-badge hidden" id="turn-badge">TURN 1</span>
+      <span class="turn-counter hidden" id="turn-counter"></span>
     </div>
-    <div id="battle-log">
-      <span class="log-neutral">Fleet terminal ready. Configure ships and press Start Battle.</span>
-    </div>
+    <button class="btn btn-ghost btn-sm" onclick="copyLog()">Copy Log</button>
   </div>
+  <div id="battle-log">
+    <span class="log-neutral">Fleet terminal ready. Configure ships and press Start Battle.</span>
+  </div>
+</div>
+
+<!-- Turn summary section -->
+<div id="summary-section" style="margin-top:16px"></div>
 
 </div><!-- /app -->
 
@@ -520,7 +261,7 @@
   <div class="modal-box">
     <div class="modal-head">
       <h2>Edit Ship Stats &amp; Reinforce</h2>
-      <button class="btn btn-ghost" style="padding:5px 12px;font-size:.8rem;" onclick="closeEditModal()">✕ Close</button>
+      <button class="btn btn-ghost btn-sm" onclick="closeEditModal()">✕ Close</button>
     </div>
     <div class="modal-body" id="edit-modal-body"></div>
     <div class="modal-foot">
@@ -530,11 +271,11 @@
   </div>
 </div>
 
-<!-- Reset Confirm Modal -->
+<!-- Reset Modal -->
 <div class="modal-overlay hidden" id="reset-modal">
   <div class="confirm-box">
     <h2>Reset Battle?</h2>
-    <p>This will end the active battle. Your fleet setup on the left will be preserved.</p>
+    <p>This will end the active battle. Your fleet setup will be preserved.</p>
     <div class="actions">
       <button class="btn btn-ghost" onclick="closeResetModal()">Cancel</button>
       <button class="btn btn-danger" onclick="doReset()">Yes, Reset</button>
@@ -543,325 +284,259 @@
 </div>
 
 <script>
-// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 //  STATE
-// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 let sim = {
-  teamA: [],
-  teamB: [],
-  turn: 1,
-  active: false,
-  phase: 'SETUP',   // SETUP | ATTACK | AFTERMATH | MID_TURN
-  midTurnUsed: false,
-  pendingDamageA: [],  // [{group, rawDamage}] accumulated during attack phase
-  pendingDamageB: [],
+  teamA:[], teamB:[], turn:1, active:false,
+  phase:'SETUP', midTurnUsed:false
 };
-
 let cardCounter = 0;
+// Per-turn summary data
+let turnSummaries = [];
 
-// ═══════════════════════════════════════════════
-//  SHIP GROUP CLASS
-// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
+//  SHIP GROUP
+// ═══════════════════════════════════════════════════════
 class ShipGroup {
-  constructor(cfg) {
-    this.name               = cfg.name || 'Unnamed Group';
-    this.individualHp       = cfg.hp;
-    this.maxCount           = cfg.count;
-    this.currentCount       = cfg.count;
-    this.fp                 = cfg.fp;
-    this.numRolls           = cfg.numRolls;
-    this.rollAddon          = cfg.rollAddon;
-    this.rollMultiplier     = cfg.rollMultiplier;
-    this.damageMitigation   = cfg.mitigation;   // 0–1
-    this.evasion            = cfg.evasion;       // 0–1
-    this.guaranteedDodges   = cfg.dodges;
-    this.dodgePool          = cfg.count * cfg.dodges;
-    this.counterChance      = cfg.counter;       // 0–1
+  constructor(c) {
+    this.name             = c.name || 'Unnamed';
+    this.individualHp     = c.hp;
+    this.maxCount         = c.count;
+    this.currentCount     = c.count;
+    this.fp               = c.fp;
+    this.numRolls         = c.numRolls;
+    this.rollAddon        = c.rollAddon;
+    this.rollMultiplier   = c.rollMultiplier;
+    this.damageMitigation = c.mitigation;
+    this.evasion          = c.evasion;
+    this.guaranteedDodges = c.dodges;
+    this.dodgePool        = c.count * c.dodges;
+    this.counterChance    = c.counter;
+    this.undodgeable      = c.undodgeable;   // normal attacks undodgeable toggle
     // pre-battle ability
-    this.abilityDamage      = cfg.abilityDamage;
-    this.abilityShipsHit    = cfg.abilityShipsHit;
-    this.abilityUndodgeable = cfg.abilityUndodgeable;
-    this.abilitySpillover   = cfg.abilitySpillover;
-    // per-turn tracking
-    this.damageBuffer       = 0;  // raw damage accumulated THIS turn before mitigation
-    this.residualDamage     = 0;  // leftover overkill damage for spillover
+    this.abilityDamage    = c.abilityDamage;
+    this.abilityShipsHit  = c.abilityShipsHit;
+    this.abilityHitAll    = c.abilityHitAll;
+    this.abilityUndodgeable = c.abilityUndodgeable;
+    this.abilitySpillover = c.abilitySpillover;
+    this.abilityRoll      = c.abilityRoll;   // whether ability rolls damage
+    // runtime
+    this.damageBuffer     = 0;
+    this._dmgOnFront      = 0;
   }
-
   isAlive()     { return this.currentCount > 0; }
   isDestroyed() { return this.currentCount <= 0; }
 
-  // Roll a single attack from this group
   rollAttack() {
-    const minRoll = 5;
-    let roll;
-    if (this.fp <= minRoll) {
-      roll = this.fp;
-    } else {
-      roll = Math.floor(Math.random() * (this.fp - minRoll + 1)) + minRoll;
-    }
-    let result = Math.ceil((roll + this.rollAddon) * this.rollMultiplier);
-    return Math.max(0, result);
+    const min = 5;
+    let roll = this.fp <= min ? this.fp : Math.floor(Math.random()*(this.fp-min+1))+min;
+    return Math.max(0, Math.ceil((roll + this.rollAddon) * this.rollMultiplier));
   }
 
-  // Apply accumulated damageBuffer at end of turn, with spillover to random group
-  applyBuffer(allGroups) {
-    if (this.damageBuffer <= 0) return 0;
-    const mitigated = Math.ceil(this.damageBuffer * (1 - this.damageMitigation));
-    this.damageBuffer = 0;
-
-    let dmgLeft = mitigated;
-    let shipsLost = 0;
-
-    // Drain into this group first
-    while (dmgLeft > 0 && this.currentCount > 0) {
-      if (this.individualHp <= 0) { dmgLeft = 0; break; }
-      // damage needed to kill current front ship
-      const hpRemaining = this.individualHp - this._dmgOnFront;
-      if (dmgLeft >= hpRemaining) {
-        dmgLeft -= hpRemaining;
-        this._dmgOnFront = 0;
-        this.currentCount--;
-        shipsLost++;
-      } else {
-        this._dmgOnFront += dmgLeft;
-        dmgLeft = 0;
-      }
-    }
-    if (this.currentCount < 0) this.currentCount = 0;
-
-    // Spill remaining to a random surviving group (not self)
-    if (dmgLeft > 0) {
-      const others = allGroups.filter(g => g !== this && g.isAlive());
-      if (others.length > 0) {
-        const target = others[Math.floor(Math.random() * others.length)];
-        target.damageBuffer += dmgLeft / (1 - target.damageMitigation || 1);
-        // We pre-convert back so their own applyBuffer re-mitigates correctly
-        // Actually simpler: just add as raw damage to their buffer
-        // Re-do: add as already-mitigated damage directly to their front-ship pool
-        // For consistency, we recurse via addRawDamage helper
-        target.damageBuffer = 0; // undo the above
-        addSpilloverDamage(target, dmgLeft, allGroups);
-      }
-    }
-
-    return shipsLost;
+  // Roll ability damage (min 5, max = abilityDamage)
+  rollAbilityDamage() {
+    const min = 5;
+    const max = this.abilityDamage;
+    if (max <= min) return max;
+    return Math.floor(Math.random()*(max-min+1))+min;
   }
 
   toString() { return `${this.name} (${this.currentCount}/${this.maxCount})`; }
 }
 
-// Helper: apply already-mitigated spillover damage directly to a group
-// Returns ships lost
-function addSpilloverDamage(group, mitigatedDmg, allGroups) {
-  let dmgLeft = mitigatedDmg;
-  let shipsLost = 0;
+// ═══════════════════════════════════════════════════════
+//  DAMAGE APPLICATION (abilities / mid-turn — immediate)
+// ═══════════════════════════════════════════════════════
+function applyHit(group, rawDamage, spillover, allGroups) {
+  const final = Math.max(0, Math.ceil(rawDamage * (1 - group.damageMitigation)));
+  let dmgLeft = final, shipsLost = 0;
+  if (group.individualHp <= 0) return {final, shipsLost};
 
   while (dmgLeft > 0 && group.currentCount > 0) {
-    if (group.individualHp <= 0) { dmgLeft = 0; break; }
-    const hpRemaining = group.individualHp - group._dmgOnFront;
-    if (dmgLeft >= hpRemaining) {
-      dmgLeft -= hpRemaining;
-      group._dmgOnFront = 0;
-      group.currentCount--;
-      shipsLost++;
-    } else {
-      group._dmgOnFront += dmgLeft;
-      dmgLeft = 0;
-    }
+    const rem = group.individualHp - group._dmgOnFront;
+    if (dmgLeft >= rem) { dmgLeft -= rem; group._dmgOnFront = 0; group.currentCount--; shipsLost++; }
+    else { group._dmgOnFront += dmgLeft; dmgLeft = 0; }
   }
   if (group.currentCount < 0) group.currentCount = 0;
 
-  // Continue spilling
+  // spillover to random other group
+  if (spillover && dmgLeft > 0) {
+    const others = allGroups.filter(g => g !== group && g.isAlive());
+    if (others.length > 0) {
+      const next = others[Math.floor(Math.random()*others.length)];
+      const r = applyHit(next, dmgLeft / (1 - next.damageMitigation || 1e-9), true, allGroups);
+      // re-call with already-mitigated value converted back to raw — simpler: use raw directly
+      // (we pass remaining mitigated damage as raw, next group re-mitigates it)
+      shipsLost += r.shipsLost;
+    }
+  }
+  return {final, shipsLost};
+}
+
+// ═══════════════════════════════════════════════════════
+//  AFTERMATH: apply buffered damage with spillover
+// ═══════════════════════════════════════════════════════
+function resolveBuffer(group, allGroups) {
+  if (group.damageBuffer <= 0) return {raw:0, mitigated:0, shipsLost:0};
+  const raw = group.damageBuffer;
+  const mitigated = Math.max(0, Math.ceil(raw * (1 - group.damageMitigation)));
+  group.damageBuffer = 0;
+  let dmgLeft = mitigated, shipsLost = 0;
+
+  if (group.individualHp > 0) {
+    while (dmgLeft > 0 && group.currentCount > 0) {
+      const rem = group.individualHp - group._dmgOnFront;
+      if (dmgLeft >= rem) { dmgLeft -= rem; group._dmgOnFront = 0; group.currentCount--; shipsLost++; }
+      else { group._dmgOnFront += dmgLeft; dmgLeft = 0; }
+    }
+    if (group.currentCount < 0) group.currentCount = 0;
+  }
+
+  // spillover residual
   if (dmgLeft > 0) {
     const others = allGroups.filter(g => g !== group && g.isAlive());
     if (others.length > 0) {
-      const next = others[Math.floor(Math.random() * others.length)];
-      const nextMitigated = Math.ceil(dmgLeft * (1 - next.damageMitigation));
-      addSpilloverDamage(next, nextMitigated, allGroups);
+      const next = others[Math.floor(Math.random()*others.length)];
+      next.damageBuffer += dmgLeft / Math.max(0.01, 1 - next.damageMitigation); // convert back to raw for next group's mitigation
+      const r2 = resolveBuffer(next, allGroups);
+      shipsLost += r2.shipsLost;
     }
   }
-  return shipsLost;
+  return {raw, mitigated, shipsLost};
 }
 
-// Proper single-hit damage application (for abilities, mid-turn) — returns {finalDamage, shipsLost}
-function applyHit(group, rawDamage, spillover, allGroups) {
-  const finalDamage = Math.max(0, Math.ceil(rawDamage * (1 - group.damageMitigation)));
-  let dmgLeft = finalDamage;
-  let shipsLost = 0;
-
-  if (group.individualHp <= 0) return { finalDamage, shipsLost };
-
-  if (spillover) {
-    // Drain through ships, then spill to random group
-    while (dmgLeft > 0 && group.currentCount > 0) {
-      const hpRemaining = group.individualHp - group._dmgOnFront;
-      if (dmgLeft >= hpRemaining) {
-        dmgLeft -= hpRemaining;
-        group._dmgOnFront = 0;
-        group.currentCount--;
-        shipsLost++;
-      } else {
-        group._dmgOnFront += dmgLeft;
-        dmgLeft = 0;
-      }
-    }
-    if (group.currentCount < 0) group.currentCount = 0;
-    if (dmgLeft > 0) {
-      const others = allGroups.filter(g => g !== group && g.isAlive());
-      if (others.length > 0) {
-        const next = others[Math.floor(Math.random() * others.length)];
-        const s = addSpilloverDamage(next, Math.ceil(dmgLeft * (1 - next.damageMitigation)), allGroups);
-        shipsLost += s;
-      }
-    }
-  } else {
-    // No spillover: only kills 1 ship max
-    const hpRemaining = group.individualHp - group._dmgOnFront;
-    if (finalDamage >= hpRemaining) {
-      group._dmgOnFront = 0;
-      group.currentCount = Math.max(0, group.currentCount - 1);
-      shipsLost = 1;
-    } else {
-      group._dmgOnFront += finalDamage;
-    }
-  }
-  return { finalDamage, shipsLost };
-}
-
-// ═══════════════════════════════════════════════
-//  LOGGING
-// ═══════════════════════════════════════════════
-function log(msg, type = 'info', indent = 0) {
-  const el = document.getElementById('battle-log');
-  const div = document.createElement('span');
-  const indentClass = indent === 1 ? ' log-indent' : indent === 2 ? ' log-indent2' : '';
-  div.className = `log-${type}${indentClass}`;
-  div.innerHTML = msg;
-  el.appendChild(div);
-  el.scrollTop = el.scrollHeight;
-}
-
-function logSep(label, type = 'header-line') {
-  log(`━━ ${label} ━━`, type);
-}
-
-function clearLog() {
-  document.getElementById('battle-log').innerHTML = '';
-}
-
-// ═══════════════════════════════════════════════
-//  TARGETING POOL (weighted by ship count)
-// ═══════════════════════════════════════════════
-function buildTargetPool(groups) {
+// ═══════════════════════════════════════════════════════
+//  TARGETING
+// ═══════════════════════════════════════════════════════
+function buildPool(groups) {
   const pool = [];
-  groups.forEach(g => {
-    if (g.isAlive()) {
-      for (let i = 0; i < g.currentCount; i++) pool.push(g);
-    }
-  });
+  groups.forEach(g => { if (g.isAlive()) for (let i=0;i<g.currentCount;i++) pool.push(g); });
   return pool;
 }
-
 function pickTarget(pool) {
-  if (pool.length === 0) return null;
-  return pool[Math.floor(Math.random() * pool.length)];
+  return pool.length ? pool[Math.floor(Math.random()*pool.length)] : null;
+}
+function pickFromGroups(groups) {
+  return pickTarget(buildPool(groups));
 }
 
-// Rebuild pool after kills
-function pickTargetFromGroups(groups) {
-  const pool = buildTargetPool(groups);
-  return pickTarget(pool);
-}
-
-// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 //  DODGE CHECK
-// ═══════════════════════════════════════════════
-function checkDodge(target, attacker, undodgeable) {
+// ═══════════════════════════════════════════════════════
+function checkDodge(target, undodgeable) {
   if (undodgeable) return false;
-  if (target.dodgePool > 0) {
-    target.dodgePool--;
-    return 'guaranteed';
-  }
+  if (target.dodgePool > 0) { target.dodgePool--; return 'guaranteed'; }
   if (Math.random() < target.evasion) return 'evade';
   return false;
 }
 
-// ═══════════════════════════════════════════════
-//  START BATTLE
-// ═══════════════════════════════════════════════
-function startBattle() {
-  const groupsA = [], groupsB = [];
-  document.querySelectorAll('.ship-card').forEach(card => {
-    const team = card.dataset.team;
-    const g = readCardConfig(card);
-    if (!g) return;
-    const sg = new ShipGroup(g);
-    sg._dmgOnFront = 0;
-    if (team === 'A') groupsA.push(sg);
-    else groupsB.push(sg);
-  });
+// ═══════════════════════════════════════════════════════
+//  LOGGING
+// ═══════════════════════════════════════════════════════
+let logLines = [];  // plain text for copy
 
-  if (groupsA.length === 0 || groupsB.length === 0) {
-    clearLog();
-    log('Both teams must have at least one ship group.', 'defeat');
-    return;
+function log(msg, type='info', indent=0) {
+  const el = document.getElementById('battle-log');
+  const span = document.createElement('span');
+  span.className = `log-${type}${indent===1?' log-indent':indent===2?' log-indent2':''}`;
+  span.innerHTML = msg;
+  el.appendChild(span);
+  el.scrollTop = el.scrollHeight;
+  // store plain text
+  const prefix = indent===1?'  ':indent===2?'    ':'';
+  logLines.push(prefix + msg.replace(/<[^>]+>/g,''));
+}
+function logSep(label, type='header-line') { log(`━━ ${label} ━━`, type); }
+function clearLog() {
+  document.getElementById('battle-log').innerHTML = '';
+  logLines = [];
+}
+function copyLog() {
+  const text = logLines.join('\n');
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.querySelector('[onclick="copyLog()"]');
+    const orig = btn.textContent;
+    btn.textContent = 'Copied!';
+    setTimeout(()=>btn.textContent=orig, 1500);
+  }).catch(()=>{
+    // fallback
+    const ta = document.createElement('textarea');
+    ta.value = text; document.body.appendChild(ta);
+    ta.select(); document.execCommand('copy');
+    document.body.removeChild(ta);
+  });
+}
+
+// ═══════════════════════════════════════════════════════
+//  START BATTLE
+// ═══════════════════════════════════════════════════════
+function startBattle() {
+  const gA=[], gB=[];
+  document.querySelectorAll('.ship-card').forEach(card => {
+    const cfg = readCardConfig(card);
+    if (!cfg) return;
+    const sg = new ShipGroup(cfg);
+    if (card.dataset.team==='A') gA.push(sg); else gB.push(sg);
+  });
+  if (!gA.length || !gB.length) {
+    clearLog(); log('Both teams need at least one ship group.','defeat'); return;
   }
 
-  sim = {
-    teamA: groupsA,
-    teamB: groupsB,
-    turn: 1,
-    active: true,
-    phase: 'PRE_BATTLE',
-    midTurnUsed: false,
-    pendingDamageA: [],
-    pendingDamageB: [],
-  };
-
+  sim = { teamA:gA, teamB:gB, turn:1, active:true, phase:'PRE_BATTLE', midTurnUsed:false };
+  turnSummaries = [];
+  document.getElementById('summary-section').innerHTML = '';
   clearLog();
-  logSep('BATTLE TERMINAL INITIALIZED', 'system');
-  log(`Team A: ${sim.teamA.map(f => f.toString()).join(', ')}`, 'teamA');
-  log(`Team B: ${sim.teamB.map(f => f.toString()).join(', ')}`, 'teamB');
 
-  // Pre-battle abilities
-  logSep('PRE-BATTLE ABILITY PHASE', 'header-line');
-  const firedA = firePreBattle(sim.teamA, sim.teamB);
-  const firedB = firePreBattle(sim.teamB, sim.teamA);
-  if (!firedA && !firedB) log('No pre-battle abilities configured.', 'neutral');
+  logSep('BATTLE INITIALIZED','system');
+  log(`Team A: ${sim.teamA.map(f=>f.toString()).join(', ')}`, 'teamA');
+  log(`Team B: ${sim.teamB.map(f=>f.toString()).join(', ')}`, 'teamB');
+
+  logSep('PRE-BATTLE ABILITY PHASE','header-line');
+  const fA = firePreBattle(sim.teamA, sim.teamB);
+  const fB = firePreBattle(sim.teamB, sim.teamA);
+  if (!fA && !fB) log('No pre-battle abilities configured.','neutral');
 
   sim.phase = 'ATTACK';
   updateUI();
   if (checkBattleEnd()) return;
-
-  log('Pre-battle phase complete. Begin turn 1 — press Attack Phase.', 'neutral');
+  log('Pre-battle complete. Press Attack Phase to begin Turn 1.','neutral');
 }
 
-// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 //  PRE-BATTLE ABILITIES
-// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 function firePreBattle(attackers, defenders) {
   let used = false;
   attackers.forEach(atk => {
     if (atk.abilityDamage <= 0 || atk.isDestroyed()) return;
     used = true;
-    log(`${atk.name} fires pre-battle ability (${atk.abilityShipsHit} hits, ${atk.abilityDamage} dmg each, undodgeable: ${atk.abilityUndodgeable ? 'Yes' : 'No'}, spillover: ${atk.abilitySpillover ? 'Yes' : 'No'})`, 'special');
+    const hitAll = atk.abilityHitAll;
+    const hitsLabel = hitAll ? 'ALL' : String(atk.abilityShipsHit);
+    log(`${atk.name} pre-battle ability — ${hitsLabel} hits @ ${atk.abilityRoll?'roll('+atk.abilityDamage+')':atk.abilityDamage} dmg | undodgeable:${atk.abilityUndodgeable?'Y':'N'} spillover:${atk.abilitySpillover?'Y':'N'}`, 'special');
 
-    let hitsLeft = atk.abilityShipsHit;
+    let hitsLeft;
+    if (hitAll) {
+      // target every surviving ship once (weighted pool)
+      const pool = buildPool(defenders);
+      hitsLeft = pool.length;
+    } else {
+      hitsLeft = atk.abilityShipsHit;
+    }
+
     while (hitsLeft > 0) {
-      const targets = defenders.filter(g => g.isAlive());
-      if (targets.length === 0) { log('  No targets remain.', 'neutral', 1); break; }
-
-      const target = pickTargetFromGroups(targets);
+      const targets = defenders.filter(g=>g.isAlive());
+      if (!targets.length) { log('  No targets remain.','neutral',1); break; }
+      const target = pickFromGroups(targets);
       if (!target) break;
 
-      const dodge = checkDodge(target, atk, atk.abilityUndodgeable);
-      if (dodge === 'guaranteed') {
-        log(`  Guaranteed dodge by ${target.name} (${target.dodgePool} left)`, 'neutral', 1);
-      } else if (dodge === 'evade') {
-        log(`  Evaded by ${target.name}`, 'neutral', 1);
-      } else {
-        const { finalDamage, shipsLost } = applyHit(target, atk.abilityDamage, atk.abilitySpillover, defenders);
-        log(`  Hit ${target.name} — ${finalDamage} dmg${shipsLost > 0 ? ` → ${shipsLost} ship(s) lost` : ''}`, 'special', 1);
+      const dodge = checkDodge(target, atk.abilityUndodgeable);
+      if (dodge==='guaranteed') { log(`  ${target.name}: guaranteed dodge (${target.dodgePool} left)`, 'neutral',1); }
+      else if (dodge==='evade') { log(`  ${target.name}: evaded`,'neutral',1); }
+      else {
+        const dmg = atk.abilityRoll ? atk.rollAbilityDamage() : atk.abilityDamage;
+        const {final, shipsLost} = applyHit(target, dmg, atk.abilitySpillover, defenders);
+        log(`  Hit ${target.name} — ${final} dmg${shipsLost>0?' → '+shipsLost+' lost':''}`, 'special',1);
       }
       hitsLeft--;
     }
@@ -869,233 +544,205 @@ function firePreBattle(attackers, defenders) {
   return used;
 }
 
-// ═══════════════════════════════════════════════
-//  ATTACK PHASE — all ships roll, damage buffered
-// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
+//  ATTACK PHASE
+// ═══════════════════════════════════════════════════════
 function runAttackPhase() {
-  if (!sim.active || sim.phase !== 'ATTACK') return;
+  if (!sim.active || sim.phase!=='ATTACK') return;
 
-  // Reset buffers
-  sim.teamA.forEach(g => { g.damageBuffer = 0; });
-  sim.teamB.forEach(g => { g.damageBuffer = 0; });
+  sim.teamA.forEach(g => { g.damageBuffer=0; });
+  sim.teamB.forEach(g => { g.damageBuffer=0; });
 
   logSep(`TURN ${sim.turn} — ATTACK PHASE`, 'header-line');
-  log('All ships fire simultaneously. Deaths resolved in Aftermath.', 'neutral');
+  log('All ships fire simultaneously. Deaths resolved in Aftermath.','neutral');
 
-  // Build snapshot pools (based on counts at START of this turn)
-  const poolA = buildTargetPool(sim.teamA);
-  const poolB = buildTargetPool(sim.teamB);
+  // Snapshot pools at start of turn (counts don't change mid-attack)
+  const snapPoolA = buildPool(sim.teamA);
+  const snapPoolB = buildPool(sim.teamB);
 
-  const pendingA = []; // {group, raw} — damage TO teamA
-  const pendingB = []; // damage TO teamB
+  // Track damage for summary
+  let rawToA=0, rawToB=0;
 
-  // ── Team A attacks Team B ──
-  log('Team A fires:', 'teamA');
+  // ── Team A → Team B ──
+  log('Team A fires:','teamA');
   sim.teamA.forEach(atk => {
     if (atk.isDestroyed()) return;
-    for (let s = 0; s < atk.currentCount; s++) {
-      for (let r = 0; r < atk.numRolls; r++) {
-        const target = pickTarget(poolB);
+    for (let s=0; s<atk.currentCount; s++) {
+      for (let r=0; r<atk.numRolls; r++) {
+        const target = pickTarget(snapPoolB);
         if (!target) continue;
 
-        const dodge = checkDodge(target, atk, false);
-        if (dodge === 'guaranteed') {
-          log(`  ${atk.name} → ${target.name}: guaranteed dodge (${target.dodgePool} left)`, 'neutral', 1);
-          continue;
-        }
-        if (dodge === 'evade') {
-          log(`  ${atk.name} → ${target.name}: evaded`, 'neutral', 1);
-          continue;
-        }
+        // dodge check (respects undodgeable toggle on attacker)
+        const dodge = checkDodge(target, atk.undodgeable);
+        if (dodge==='guaranteed') { log(`  ${atk.name}→${target.name}: guar. dodge (${target.dodgePool} left)`,'neutral',1); continue; }
+        if (dodge==='evade')      { log(`  ${atk.name}→${target.name}: evaded`,'neutral',1); continue; }
 
         const raw = atk.rollAttack();
-        pendingB.push({ group: target, raw });
-        log(`  ${atk.name} → ${target.name}: ${raw} raw dmg`, 'teamA', 1);
+        target.damageBuffer += raw;
+        rawToB += raw;
+        log(`  ${atk.name}→${target.name}: ${raw} raw`,'teamA',1);
 
-        // Counterattack
+        // Counterattack — attacker's own evasion applies
         if (Math.random() < target.counterChance) {
-          const ctr = target.rollAttack();
-          pendingA.push({ group: atk, raw: ctr });
-          log(`    ↩ ${target.name} counters ${atk.name}: ${ctr} raw dmg`, 'counter', 2);
+          const ctrDodge = checkDodge(atk, false); // attacker can dodge the counter
+          if (ctrDodge==='guaranteed') { log(`    ↩ ${target.name} counters — guar. dodge by ${atk.name} (${atk.dodgePool} left)`,'counter',2); }
+          else if (ctrDodge==='evade') { log(`    ↩ ${target.name} counters — evaded by ${atk.name}`,'counter',2); }
+          else {
+            const ctr = target.rollAttack();
+            atk.damageBuffer += ctr;
+            rawToA += ctr;
+            log(`    ↩ ${target.name} counters ${atk.name}: ${ctr} raw`,'counter',2);
+          }
         }
       }
     }
   });
 
-  // ── Team B attacks Team A ──
-  log('Team B fires:', 'teamB');
+  // ── Team B → Team A ──
+  log('Team B fires:','teamB');
   sim.teamB.forEach(atk => {
     if (atk.isDestroyed()) return;
-    for (let s = 0; s < atk.currentCount; s++) {
-      for (let r = 0; r < atk.numRolls; r++) {
-        const target = pickTarget(poolA);
+    for (let s=0; s<atk.currentCount; s++) {
+      for (let r=0; r<atk.numRolls; r++) {
+        const target = pickTarget(snapPoolA);
         if (!target) continue;
 
-        const dodge = checkDodge(target, atk, false);
-        if (dodge === 'guaranteed') {
-          log(`  ${atk.name} → ${target.name}: guaranteed dodge (${target.dodgePool} left)`, 'neutral', 1);
-          continue;
-        }
-        if (dodge === 'evade') {
-          log(`  ${atk.name} → ${target.name}: evaded`, 'neutral', 1);
-          continue;
-        }
+        const dodge = checkDodge(target, atk.undodgeable);
+        if (dodge==='guaranteed') { log(`  ${atk.name}→${target.name}: guar. dodge (${target.dodgePool} left)`,'neutral',1); continue; }
+        if (dodge==='evade')      { log(`  ${atk.name}→${target.name}: evaded`,'neutral',1); continue; }
 
         const raw = atk.rollAttack();
-        pendingA.push({ group: target, raw });
-        log(`  ${atk.name} → ${target.name}: ${raw} raw dmg`, 'teamB', 1);
+        target.damageBuffer += raw;
+        rawToA += raw;
+        log(`  ${atk.name}→${target.name}: ${raw} raw`,'teamB',1);
 
-        // Counterattack
         if (Math.random() < target.counterChance) {
-          const ctr = target.rollAttack();
-          pendingB.push({ group: atk, raw: ctr });
-          log(`    ↩ ${target.name} counters ${atk.name}: ${ctr} raw dmg`, 'counter', 2);
+          const ctrDodge = checkDodge(atk, false);
+          if (ctrDodge==='guaranteed') { log(`    ↩ ${target.name} counters — guar. dodge by ${atk.name} (${atk.dodgePool} left)`,'counter',2); }
+          else if (ctrDodge==='evade') { log(`    ↩ ${target.name} counters — evaded by ${atk.name}`,'counter',2); }
+          else {
+            const ctr = target.rollAttack();
+            atk.damageBuffer += ctr;
+            rawToB += ctr;
+            log(`    ↩ ${target.name} counters ${atk.name}: ${ctr} raw`,'counter',2);
+          }
         }
       }
     }
   });
 
-  // Aggregate raw damage per group
-  pendingA.forEach(({ group, raw }) => { group.damageBuffer += raw; });
-  pendingB.forEach(({ group, raw }) => { group.damageBuffer += raw; });
+  // Store for summary
+  sim._pendingRawToA = rawToA;
+  sim._pendingRawToB = rawToB;
 
   sim.phase = 'AFTERMATH';
   updateUI();
-  log('Attack phase complete. Press Apply Losses to resolve damage.', 'neutral');
+  log('Attack phase done. Press Apply Losses to resolve damage.','neutral');
 }
 
-// ═══════════════════════════════════════════════
-//  AFTERMATH — apply buffered damage with spillover
-// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
+//  AFTERMATH
+// ═══════════════════════════════════════════════════════
 function runAftermath() {
-  if (!sim.active || sim.phase !== 'AFTERMATH') return;
+  if (!sim.active || sim.phase!=='AFTERMATH') return;
 
   logSep(`TURN ${sim.turn} — AFTERMATH`, 'header-line');
 
-  let anyDamage = false;
+  const summaryData = { turn: sim.turn, teamA:[], teamB:[], rawToA: sim._pendingRawToA||0, rawToB: sim._pendingRawToB||0 };
+  let anyDmg = false;
 
-  const resolveTeam = (team, allGroups, teamLabel, logType) => {
-    team.forEach(g => {
-      if (g.damageBuffer <= 0) return;
-      anyDamage = true;
-      const rawBuf = g.damageBuffer;
-      const mitigated = Math.max(0, Math.ceil(rawBuf * (1 - g.damageMitigation)));
+  const snapA = sim.teamA.map(g=>({name:g.name, before:g.currentCount}));
+  const snapB = sim.teamB.map(g=>({name:g.name, before:g.currentCount}));
 
-      // Apply damage with spillover
-      let dmgLeft = mitigated;
-      let shipsLost = 0;
+  sim.teamA.forEach(g => {
+    if (g.damageBuffer<=0) return; anyDmg=true;
+    const {raw,mitigated,shipsLost} = resolveBuffer(g, sim.teamA);
+    log(`${g.name}: ${raw} raw → ${mitigated} dmg → −${shipsLost} ships (${g.currentCount} remain)`,'teamA');
+  });
+  sim.teamB.forEach(g => {
+    if (g.damageBuffer<=0) return; anyDmg=true;
+    const {raw,mitigated,shipsLost} = resolveBuffer(g, sim.teamB);
+    log(`${g.name}: ${raw} raw → ${mitigated} dmg → −${shipsLost} ships (${g.currentCount} remain)`,'teamB');
+  });
 
-      while (dmgLeft > 0 && g.currentCount > 0) {
-        const hp = g.individualHp;
-        if (hp <= 0) { dmgLeft = 0; break; }
-        const hpRem = hp - g._dmgOnFront;
-        if (dmgLeft >= hpRem) {
-          dmgLeft -= hpRem;
-          g._dmgOnFront = 0;
-          g.currentCount--;
-          shipsLost++;
-        } else {
-          g._dmgOnFront += dmgLeft;
-          dmgLeft = 0;
-        }
-      }
-      if (g.currentCount < 0) g.currentCount = 0;
-      g.damageBuffer = 0;
+  if (!anyDmg) log('No damage connected this turn.','neutral');
 
-      log(`${g.name}: ${rawBuf} raw → ${mitigated} mitigated dmg → ${shipsLost} ship(s) lost (remaining: ${g.currentCount})`, logType);
+  // Build summary rows
+  sim.teamA.forEach((g,i) => {
+    const before = snapA[i]?.before ?? g.maxCount;
+    summaryData.teamA.push({name:g.name, before, after:g.currentCount, lost: before-g.currentCount});
+  });
+  sim.teamB.forEach((g,i) => {
+    const before = snapB[i]?.before ?? g.maxCount;
+    summaryData.teamB.push({name:g.name, before, after:g.currentCount, lost: before-g.currentCount});
+  });
+  turnSummaries.unshift(summaryData); // newest first
+  renderSummaries();
 
-      // Spillover residual to random surviving group
-      if (dmgLeft > 0) {
-        const others = allGroups.filter(x => x !== g && x.isAlive());
-        if (others.length > 0) {
-          const next = others[Math.floor(Math.random() * others.length)];
-          const spillMit = Math.max(0, Math.ceil(dmgLeft * (1 - next.damageMitigation)));
-          let s2 = 0;
-          let d2 = spillMit;
-          while (d2 > 0 && next.currentCount > 0) {
-            const hp2 = next.individualHp;
-            if (hp2 <= 0) { d2 = 0; break; }
-            const h2 = hp2 - next._dmgOnFront;
-            if (d2 >= h2) {
-              d2 -= h2;
-              next._dmgOnFront = 0;
-              next.currentCount--;
-              s2++;
-            } else {
-              next._dmgOnFront += d2;
-              d2 = 0;
-            }
-          }
-          if (next.currentCount < 0) next.currentCount = 0;
-          if (s2 > 0) log(`  Overkill spillover → ${next.name}: ${s2} additional ship(s) lost`, logType, 1);
-        }
-      }
-    });
-  };
-
-  resolveTeam(sim.teamA, sim.teamA, 'A', 'teamA');
-  resolveTeam(sim.teamB, sim.teamB, 'B', 'teamB');
-
-  if (!anyDamage) log('No damage connected this turn.', 'neutral');
-
-  log(`Fleet summary — Team A: ${sim.teamA.map(f => f.toString()).join(', ')}`, 'teamA');
-  log(`Fleet summary — Team B: ${sim.teamB.map(f => f.toString()).join(', ')}`, 'teamB');
+  log(`Team A: ${sim.teamA.map(f=>f.toString()).join(', ')}`, 'teamA');
+  log(`Team B: ${sim.teamB.map(f=>f.toString()).join(', ')}`, 'teamB');
 
   if (checkBattleEnd()) return;
 
-  // Check 100-turn stalemate
   if (sim.turn >= 100) {
-    logSep('STALEMATE', 'header-line');
-    log('Battle exceeded 100 turns. STALEMATE declared.', 'stalemate');
-    sim.active = false;
-    updateUI();
-    return;
+    logSep('STALEMATE','header-line');
+    log(`Battle reached 100 turns. STALEMATE declared.`, 'stalemate');
+    sim.active = false; updateUI(); return;
   }
 
   sim.phase = 'MID_TURN';
   sim.midTurnUsed = false;
   updateUI();
-  log('Aftermath resolved. Mid-turn ability window is open.', 'neutral');
+  log('Aftermath resolved. Mid-turn ability window open.','neutral');
 }
 
-// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 //  MID-TURN ABILITIES
-// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 function useMidTurnAbilities() {
-  if (!sim.active || sim.phase !== 'MID_TURN') return;
+  if (!sim.active || sim.phase!=='MID_TURN') return;
   logSep(`TURN ${sim.turn} — MID-TURN ABILITIES`, 'header-line');
 
   const rows = document.querySelectorAll('#ability-rows .ability-row');
-  if (rows.length === 0) { log('No abilities configured.', 'neutral'); }
+  if (!rows.length) { log('No abilities configured.','neutral'); }
 
   rows.forEach((row, idx) => {
-    const attackingTeam = row.querySelector('.mid-attacker').value;
-    const dmg = parseFloat(row.querySelector('.mid-damage').value) || 0;
-    const shipsHit = Math.max(1, parseInt(row.querySelector('.mid-ships-hit').value) || 1);
-    const undodgeable = row.querySelector('.mid-undodgeable').value === 'yes';
-    const spillover = row.querySelector('.mid-spillover').value === 'yes';
+    const atTeam    = row.querySelector('.mid-attacker').value;
+    const dmg       = parseFloat(row.querySelector('.mid-damage').value)||0;
+    const hitAll    = row.querySelector('.mid-hit-all').value==='yes';
+    const shipsHit  = Math.max(1, parseInt(row.querySelector('.mid-ships-hit').value)||1);
+    const undodge   = row.querySelector('.mid-undodgeable').value==='yes';
+    const spill     = row.querySelector('.mid-spillover').value==='yes';
+    const doRoll    = row.querySelector('.mid-roll').value==='yes';
 
-    if (dmg <= 0) { log(`Ability #${idx + 1}: no damage set, skipped.`, 'neutral'); return; }
+    if (dmg<=0) { log(`Ability #${idx+1}: no damage, skipped.`,'neutral'); return; }
 
-    const defenders = attackingTeam === 'A' ? sim.teamB : sim.teamA;
-    log(`[Ability #${idx + 1}] Team ${attackingTeam} launches strike — ${shipsHit} hits @ ${dmg} each`, 'midturn');
+    const defenders = atTeam==='A' ? sim.teamB : sim.teamA;
+    const hitsLabel = hitAll ? 'ALL' : String(shipsHit);
+    log(`[Ability #${idx+1}] Team ${atTeam} — ${hitsLabel} hits @ ${doRoll?'roll('+dmg+')':dmg} | undodgeable:${undodge?'Y':'N'} spillover:${spill?'Y':'N'}`, 'midturn');
 
-    let hitsLeft = shipsHit;
+    let hitsLeft;
+    if (hitAll) {
+      hitsLeft = buildPool(defenders).length;
+    } else {
+      hitsLeft = shipsHit;
+    }
+
     while (hitsLeft > 0) {
-      const targets = defenders.filter(g => g.isAlive());
-      if (targets.length === 0) { log('  No targets remain.', 'neutral', 1); break; }
-
-      const target = pickTargetFromGroups(targets);
+      const targets = defenders.filter(g=>g.isAlive());
+      if (!targets.length) { log('  No targets remain.','neutral',1); break; }
+      const target = pickFromGroups(targets);
       if (!target) break;
 
-      const dodge = checkDodge(target, null, undodgeable);
-      if (dodge === 'guaranteed') {
-        log(`  ${target.name}: guaranteed dodge (${target.dodgePool} left)`, 'neutral', 1);
-      } else if (dodge === 'evade') {
-        log(`  ${target.name}: evaded`, 'neutral', 1);
-      } else {
-        const { finalDamage, shipsLost } = applyHit(target, dmg, spillover, defenders);
-        log(`  Hit ${target.name} — ${finalDamage} dmg${shipsLost > 0 ? ` → ${shipsLost} ship(s) lost` : ''}`, 'midturn', 1);
+      const dodge = checkDodge(target, undodge);
+      if (dodge==='guaranteed') { log(`  ${target.name}: guar. dodge (${target.dodgePool} left)`,'neutral',1); }
+      else if (dodge==='evade') { log(`  ${target.name}: evaded`,'neutral',1); }
+      else {
+        const finalDmg = doRoll ? (()=>{
+          const min=5; return dmg<=min ? dmg : Math.floor(Math.random()*(dmg-min+1))+min;
+        })() : dmg;
+        const {final, shipsLost} = applyHit(target, finalDmg, spill, defenders);
+        log(`  Hit ${target.name} — ${final} dmg${shipsLost>0?' → '+shipsLost+' lost':''}`, 'midturn',1);
       }
       hitsLeft--;
     }
@@ -1107,230 +754,229 @@ function useMidTurnAbilities() {
 }
 
 function skipMidTurn() {
-  if (!sim.active || sim.phase !== 'MID_TURN') return;
-  log(`Mid-turn window closed. Advancing to turn ${sim.turn + 1}.`, 'neutral');
+  if (!sim.active || sim.phase!=='MID_TURN') return;
+  log(`Mid-turn closed. Advancing to turn ${sim.turn+1}.`,'neutral');
   sim.turn++;
-  sim.phase = 'ATTACK';
-  sim.midTurnUsed = false;
+  sim.phase='ATTACK';
+  sim.midTurnUsed=false;
   updateUI();
 }
 
-// ═══════════════════════════════════════════════
-//  BATTLE END CHECK
-// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
+//  BATTLE END
+// ═══════════════════════════════════════════════════════
 function checkBattleEnd() {
-  const aAlive = sim.teamA.some(g => g.isAlive());
-  const bAlive = sim.teamB.some(g => g.isAlive());
+  const aAlive = sim.teamA.some(g=>g.isAlive());
+  const bAlive = sim.teamB.some(g=>g.isAlive());
   if (aAlive && bAlive) return false;
 
-  logSep('BATTLE CONCLUDED', 'header-line');
-  log(`Team A: ${sim.teamA.map(f => f.toString()).join(', ')}`, 'teamA');
-  log(`Team B: ${sim.teamB.map(f => f.toString()).join(', ')}`, 'teamB');
+  logSep('BATTLE CONCLUDED','header-line');
+  log(`Team A: ${sim.teamA.map(f=>f.toString()).join(', ')}`, 'teamA');
+  log(`Team B: ${sim.teamB.map(f=>f.toString()).join(', ')}`, 'teamB');
+  if (aAlive && !bAlive)      log('VICTORY — TEAM A','victory');
+  else if (!aAlive && bAlive) log('VICTORY — TEAM B','defeat');
+  else                        log('MUTUAL DESTRUCTION — DRAW','draw');
 
-  if (aAlive && !bAlive)       log('VICTORY — TEAM A', 'victory');
-  else if (!aAlive && bAlive)  log('VICTORY — TEAM B', 'defeat');
-  else                         log('MUTUAL DESTRUCTION — DRAW', 'draw');
-
-  sim.active = false;
-  updateUI();
-  return true;
+  sim.active=false; updateUI(); return true;
 }
 
-// ═══════════════════════════════════════════════
-//  UI STATE MACHINE
-// ═══════════════════════════════════════════════
-function updateUI() {
-  const phases = {
-    SETUP:       'phase-setup',
-    PRE_BATTLE:  'phase-prebattle',
-    ATTACK:      'phase-attack',
-    AFTERMATH:   'phase-aftermath',
-    MID_TURN:    'phase-mid-turn',
-  };
+// ═══════════════════════════════════════════════════════
+//  TURN SUMMARY RENDER
+// ═══════════════════════════════════════════════════════
+function renderSummaries() {
+  const sec = document.getElementById('summary-section');
+  sec.innerHTML = '';
+  // Only show last 5
+  const recent = turnSummaries.slice(0,5);
+  recent.forEach(s => {
+    const div = document.createElement('div');
+    div.className = 'turn-summary';
+    let rows = '';
+    s.teamA.forEach(r => {
+      rows += `<div class="summary-row"><span class="summary-a">${r.name}</span><span>${r.before} → ${r.after} <span style="color:var(--b)">(-${r.lost})</span></span></div>`;
+    });
+    s.teamB.forEach(r => {
+      rows += `<div class="summary-row"><span class="summary-b">${r.name}</span><span>${r.before} → ${r.after} <span style="color:var(--b)">(-${r.lost})</span></span></div>`;
+    });
+    div.innerHTML = `<h4>Turn ${s.turn} Summary &nbsp;<span style="color:var(--muted);font-size:.7rem">Raw dealt — A received: ${s.rawToA} / B received: ${s.rawToB}</span></h4>${rows}`;
+    sec.appendChild(div);
+  });
+}
 
-  // Phase bar
+// ═══════════════════════════════════════════════════════
+//  UI STATE
+// ═══════════════════════════════════════════════════════
+function updateUI() {
+  const phMap = {
+    SETUP:'ph-setup', PRE_BATTLE:'ph-prebattle',
+    ATTACK:'ph-attack', AFTERMATH:'ph-aftermath', MID_TURN:'ph-midturn'
+  };
   const order = ['SETUP','PRE_BATTLE','ATTACK','AFTERMATH','MID_TURN'];
   const cur = sim.active ? sim.phase : 'SETUP';
-  const curIdx = order.indexOf(cur);
-  order.forEach((p, i) => {
-    const el = document.getElementById(phases[p]);
+  const ci = order.indexOf(cur);
+  order.forEach((p,i) => {
+    const el = document.getElementById(phMap[p]);
     if (!el) return;
-    el.className = 'phase-step';
-    if (i < curIdx) el.classList.add('done');
-    else if (i === curIdx) el.classList.add('active');
+    el.className='phase-step';
+    if (i<ci) el.classList.add('done');
+    else if (i===ci) el.classList.add('active');
   });
 
-  // Buttons
-  const show = id => document.getElementById(id).classList.remove('hidden');
-  const hide = id => document.getElementById(id).classList.add('hidden');
+  const s=id=>document.getElementById(id).classList.remove('hidden');
+  const h=id=>document.getElementById(id).classList.add('hidden');
+  ['btn-start','btn-attack','btn-aftermath','btn-use-mid','btn-skip-mid','btn-change','btn-reset','mid-turn-panel','turn-badge','turn-counter'].forEach(h);
 
-  hide('btn-start'); hide('btn-next-turn'); hide('btn-aftermath');
-  hide('btn-use-mid'); hide('btn-skip-mid'); hide('btn-change');
-  hide('btn-reset'); hide('mid-turn-panel'); hide('turn-badge');
+  if (!sim.active) { s('btn-start'); return; }
 
-  if (!sim.active) {
-    show('btn-start');
-    return;
-  }
-
-  show('btn-reset');
-  show('turn-badge');
+  s('btn-reset'); s('turn-badge'); s('turn-counter');
   document.getElementById('turn-badge').textContent = `TURN ${sim.turn}`;
+  document.getElementById('turn-counter').textContent = `${sim.turn}/100`;
 
-  if (sim.phase === 'ATTACK') {
-    show('btn-next-turn');
-    show('btn-change');
-  } else if (sim.phase === 'AFTERMATH') {
-    show('btn-aftermath');
-    show('btn-change');
-  } else if (sim.phase === 'MID_TURN') {
-    show('mid-turn-panel');
-    show('btn-skip-mid');
-    show('btn-change');
-    if (!sim.midTurnUsed) {
-      show('btn-use-mid');
-    }
-    // Auto-add a row if empty
-    if (document.getElementById('ability-rows').children.length === 0) {
-      addAbilityRow();
-    }
+  if (sim.phase==='ATTACK')    { s('btn-attack'); s('btn-change'); }
+  else if (sim.phase==='AFTERMATH') { s('btn-aftermath'); s('btn-change'); }
+  else if (sim.phase==='MID_TURN') {
+    s('mid-turn-panel'); s('btn-skip-mid'); s('btn-change');
+    if (!sim.midTurnUsed) s('btn-use-mid');
+    if (!document.getElementById('ability-rows').children.length) addAbilityRow();
   }
 }
 
-// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 //  EDIT STATS MODAL
-// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 function openEditModal() {
   const body = document.getElementById('edit-modal-body');
   body.innerHTML = '';
-
-  const makeCard = (sg, team, idx) => {
+  const mkCard = (sg, team, idx) => {
     const card = document.createElement('div');
-    card.className = 'edit-card';
-    card.dataset.team = team;
-    card.dataset.idx = idx;
-    card.innerHTML = `
+    card.className='edit-card'; card.dataset.team=team; card.dataset.idx=idx;
+    card.innerHTML=`
       <h4 style="color:${team==='A'?'var(--a)':'var(--b)'}">${sg.name}</h4>
-      <div class="input-grid four">
-        <div class="field"><label>Ship Count</label><input type="number" class="e-count" value="${sg.currentCount}"></div>
-        <div class="field"><label>HP / Ship</label><input type="number" class="e-hp" value="${sg.individualHp}"></div>
-        <div class="field"><label>Firepower</label><input type="number" class="e-fp" value="${sg.fp}"></div>
-        <div class="field"><label># Rolls</label><input type="number" class="e-rolls" value="${sg.numRolls}"></div>
-        <div class="field"><label>Roll Addon</label><input type="number" class="e-addon" value="${sg.rollAddon}"></div>
-        <div class="field"><label>Roll Mult</label><input type="number" step="0.01" class="e-mult" value="${sg.rollMultiplier}"></div>
-        <div class="field"><label>Mitigation %</label><input type="number" class="e-mit" value="${Math.round(sg.damageMitigation*100)}"></div>
+      <div class="input-grid g4">
+        <div class="field"><label>Count</label><input type="number" class="e-count" value="${sg.currentCount}"></div>
+        <div class="field"><label>HP/Ship</label><input type="number" class="e-hp" value="${sg.individualHp}"></div>
+        <div class="field"><label>FP</label><input type="number" class="e-fp" value="${sg.fp}"></div>
+        <div class="field"><label>Rolls</label><input type="number" class="e-rolls" value="${sg.numRolls}"></div>
+        <div class="field"><label>Addon</label><input type="number" class="e-addon" value="${sg.rollAddon}"></div>
+        <div class="field"><label>Mult</label><input type="number" step="0.01" class="e-mult" value="${sg.rollMultiplier}"></div>
+        <div class="field"><label>Mit %</label><input type="number" class="e-mit" value="${Math.round(sg.damageMitigation*100)}"></div>
         <div class="field"><label>Evasion %</label><input type="number" class="e-ev" value="${Math.round(sg.evasion*100)}"></div>
-        <div class="field"><label>Guar. Dodges</label><input type="number" class="e-dodges" value="${sg.guaranteedDodges}"></div>
+        <div class="field"><label>G.Dodges</label><input type="number" class="e-dodges" value="${sg.guaranteedDodges}"></div>
         <div class="field"><label>Counter %</label><input type="number" class="e-ctr" value="${Math.round(sg.counterChance*100)}"></div>
       </div>`;
     return card;
   };
-
-  sim.teamA.forEach((sg, i) => body.appendChild(makeCard(sg, 'A', i)));
-  sim.teamB.forEach((sg, i) => body.appendChild(makeCard(sg, 'B', i)));
-
+  sim.teamA.forEach((sg,i)=>body.appendChild(mkCard(sg,'A',i)));
+  sim.teamB.forEach((sg,i)=>body.appendChild(mkCard(sg,'B',i)));
   document.getElementById('edit-modal').classList.remove('hidden');
 }
-
-function closeEditModal() {
-  document.getElementById('edit-modal').classList.add('hidden');
-}
-
+function closeEditModal() { document.getElementById('edit-modal').classList.add('hidden'); }
 function saveEditModal() {
-  document.querySelectorAll('#edit-modal-body .edit-card').forEach(card => {
-    const team = card.dataset.team;
-    const idx = parseInt(card.dataset.idx);
-    const sg = team === 'A' ? sim.teamA[idx] : sim.teamB[idx];
+  document.querySelectorAll('#edit-modal-body .edit-card').forEach(card=>{
+    const sg = card.dataset.team==='A' ? sim.teamA[+card.dataset.idx] : sim.teamB[+card.dataset.idx];
     if (!sg) return;
-
-    const newCount = parseInt(card.querySelector('.e-count').value) || 0;
-    sg.currentCount = newCount;
-    sg.maxCount = newCount;
-    sg.individualHp = parseInt(card.querySelector('.e-hp').value) || 0;
-    sg.fp = parseInt(card.querySelector('.e-fp').value) || 0;
-    sg.numRolls = parseInt(card.querySelector('.e-rolls').value) || 0;
-    sg.rollAddon = parseFloat(card.querySelector('.e-addon').value) || 0;
-    sg.rollMultiplier = parseFloat(card.querySelector('.e-mult').value) || 1;
-    sg.damageMitigation = (parseInt(card.querySelector('.e-mit').value) || 0) / 100;
-    sg.evasion = (parseInt(card.querySelector('.e-ev').value) || 0) / 100;
-    sg.guaranteedDodges = parseInt(card.querySelector('.e-dodges').value) || 0;
-    sg.dodgePool = newCount * sg.guaranteedDodges;
-    sg.counterChance = (parseInt(card.querySelector('.e-ctr').value) || 0) / 100;
-    sg._dmgOnFront = 0; // reset residual on reinforce
+    const newCount = parseInt(card.querySelector('.e-count').value)||0;
+    sg.currentCount=newCount; sg.maxCount=newCount;
+    sg.individualHp=parseInt(card.querySelector('.e-hp').value)||0;
+    sg.fp=parseInt(card.querySelector('.e-fp').value)||0;
+    sg.numRolls=parseInt(card.querySelector('.e-rolls').value)||0;
+    sg.rollAddon=parseFloat(card.querySelector('.e-addon').value)||0;
+    sg.rollMultiplier=parseFloat(card.querySelector('.e-mult').value)||1;
+    sg.damageMitigation=(parseInt(card.querySelector('.e-mit').value)||0)/100;
+    sg.evasion=(parseInt(card.querySelector('.e-ev').value)||0)/100;
+    sg.guaranteedDodges=parseInt(card.querySelector('.e-dodges').value)||0;
+    // NOTE: dodgePool NOT reset — permanent pool that drains, never refills
+    sg.counterChance=(parseInt(card.querySelector('.e-ctr').value)||0)/100;
+    // NOTE: _dmgOnFront NOT reset — residual HP damage persists on reinforce
   });
-
-  log('— Manual stat adjustment applied —', 'system');
-  log(`Team A: ${sim.teamA.map(f => f.toString()).join(', ')}`, 'teamA');
-  log(`Team B: ${sim.teamB.map(f => f.toString()).join(', ')}`, 'teamB');
-  closeEditModal();
-  checkBattleEnd();
+  log('— Stat adjustment applied —','system');
+  log(`Team A: ${sim.teamA.map(f=>f.toString()).join(', ')}`, 'teamA');
+  log(`Team B: ${sim.teamB.map(f=>f.toString()).join(', ')}`, 'teamB');
+  closeEditModal(); checkBattleEnd();
 }
 
-// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 //  RESET
-// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 function openResetModal()  { document.getElementById('reset-modal').classList.remove('hidden'); }
 function closeResetModal() { document.getElementById('reset-modal').classList.add('hidden'); }
 function doReset() {
-  sim = { teamA:[], teamB:[], turn:1, active:false, phase:'SETUP', midTurnUsed:false };
+  sim={teamA:[],teamB:[],turn:1,active:false,phase:'SETUP',midTurnUsed:false};
+  turnSummaries=[];
+  document.getElementById('summary-section').innerHTML='';
+  document.getElementById('ability-rows').innerHTML='';
   clearLog();
-  log('Battle reset. Configure fleets and press Start Battle.', 'neutral');
-  document.getElementById('ability-rows').innerHTML = '';
-  closeResetModal();
-  updateUI();
+  log('Battle reset. Configure fleets and press Start Battle.','neutral');
+  closeResetModal(); updateUI();
 }
 
-// ═══════════════════════════════════════════════
-//  SHIP CARD BUILDER
-// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
+//  SHIP CARD HTML
+// ═══════════════════════════════════════════════════════
 function addShipGroup(team) {
   cardCounter++;
   const container = document.getElementById(`team-${team.toLowerCase()}-ships`);
   const card = document.createElement('div');
-  card.className = 'ship-card';
-  card.dataset.team = team;
-  const accentColor = team === 'A' ? 'var(--a)' : 'var(--b)';
-  card.innerHTML = `
+  card.className='ship-card'; card.dataset.team=team;
+  const ac = team==='A'?'var(--a)':'var(--b)';
+  card.innerHTML=`
     <button class="remove-btn" onclick="this.closest('.ship-card').remove()">✕</button>
-    <div class="input-grid full" style="margin-bottom:8px">
-      <div class="field">
-        <label>Ship Group Name</label>
-        <input type="text" class="name-input" placeholder="e.g. Corvette Squadron" style="border-color:${accentColor}33">
+    <div class="input-grid g1" style="margin-bottom:8px">
+      <div class="field"><label>Group Name</label>
+        <input type="text" class="name-input" placeholder="e.g. Corvette Squadron" style="border-color:${ac}44">
       </div>
     </div>
-    <div class="input-grid three">
+    <div class="input-grid g3">
       <div class="field"><label><abbr title="Ship Count">Count</abbr></label><input type="number" class="sg-count" placeholder="0" min="0"></div>
       <div class="field"><label><abbr title="HP per ship">HP</abbr></label><input type="number" class="sg-hp" placeholder="0" min="0"></div>
       <div class="field"><label><abbr title="Firepower">FP</abbr></label><input type="number" class="sg-fp" placeholder="0" min="0"></div>
     </div>
-    <div class="input-grid four">
-      <div class="field"><label><abbr title="Number of rolls per ship per turn"># Rolls</abbr></label><input type="number" class="sg-rolls" placeholder="1" min="0"></div>
-      <div class="field"><label><abbr title="Added to each roll after RNG">Addon</abbr></label><input type="number" class="sg-addon" placeholder="0"></div>
-      <div class="field"><label><abbr title="Multiplier applied after roll + addon">Mult</abbr></label><input type="number" class="sg-mult" placeholder="1" step="0.01"></div>
-      <div class="field"><label><abbr title="Mitigation %">Mit %</abbr></label><input type="number" class="sg-mit" placeholder="0" min="0" max="100"></div>
+    <div class="input-grid g4">
+      <div class="field"><label># Rolls</label><input type="number" class="sg-rolls" placeholder="1" min="0"></div>
+      <div class="field"><label>Roll Addon</label><input type="number" class="sg-addon" placeholder="0"></div>
+      <div class="field"><label>Roll Mult</label><input type="number" class="sg-mult" placeholder="1" step="0.01"></div>
+      <div class="field"><label>Mit %</label><input type="number" class="sg-mit" placeholder="0" min="0" max="100"></div>
     </div>
-    <div class="input-grid three">
-      <div class="field"><label><abbr title="Evasion %">Evasion %</abbr></label><input type="number" class="sg-ev" placeholder="0" min="0" max="100"></div>
-      <div class="field"><label><abbr title="Guaranteed dodges per ship">G. Dodges</abbr></label><input type="number" class="sg-dodges" placeholder="0" min="0"></div>
-      <div class="field"><label><abbr title="Counterattack chance %">Counter %</abbr></label><input type="number" class="sg-ctr" placeholder="0" min="0" max="100"></div>
+    <div class="input-grid g4">
+      <div class="field"><label>Evasion %</label><input type="number" class="sg-ev" placeholder="0" min="0" max="100"></div>
+      <div class="field"><label>G.Dodges</label><input type="number" class="sg-dodges" placeholder="0" min="0"></div>
+      <div class="field"><label>Counter %</label><input type="number" class="sg-ctr" placeholder="0" min="0" max="100"></div>
+      <div class="field"><label><abbr title="Normal attacks cannot be dodged or evaded">Undodgeable</abbr></label>
+        <select class="sg-undodgeable">
+          <option value="no">No</option>
+          <option value="yes">Yes</option>
+        </select>
+      </div>
     </div>
     <div class="divider"></div>
-    <div class="ability-label">⚡ Pre-Battle / Opening Ability</div>
-    <div class="input-grid four">
-      <div class="field"><label>Dmg</label><input type="number" class="sg-adm" placeholder="0" min="0"></div>
-      <div class="field"><label>Ships Hit</label><input type="number" class="sg-ash" placeholder="1" min="1"></div>
-      <div class="field">
-        <label>Undodgeable</label>
+    <div class="section-label">⚡ Pre-Battle / Opening Ability</div>
+    <div class="input-grid g5">
+      <div class="field"><label>Damage</label><input type="number" class="sg-adm" placeholder="0" min="0"></div>
+      <div class="field"><label><abbr title="Leave 0 if using Hit All">Ships Hit</abbr></label><input type="number" class="sg-ash" placeholder="1" min="1"></div>
+      <div class="field"><label>Hit All</label>
+        <select class="sg-ahitall">
+          <option value="no">No</option>
+          <option value="yes">Yes — All</option>
+        </select>
+      </div>
+      <div class="field"><label>Undodgeable</label>
         <select class="sg-aun">
           <option value="no">No</option>
           <option value="yes">Yes</option>
         </select>
       </div>
-      <div class="field">
-        <label>Spillover</label>
+      <div class="field"><label>Spillover</label>
         <select class="sg-asp">
           <option value="no">No</option>
           <option value="yes">Yes</option>
+        </select>
+      </div>
+    </div>
+    <div class="input-grid g3">
+      <div class="field"><label><abbr title="Roll damage (min 5, max = Damage value) instead of flat">Roll Dmg</abbr></label>
+        <select class="sg-aroll">
+          <option value="no">No — Flat</option>
+          <option value="yes">Yes — Roll</option>
         </select>
       </div>
     </div>`;
@@ -1338,70 +984,151 @@ function addShipGroup(team) {
 }
 
 function readCardConfig(card) {
-  const v = (cls) => card.querySelector(cls)?.value ?? '';
-  const n = (cls, fb = 0) => parseFloat(v(cls)) || fb;
-  const i = (cls, fb = 0) => parseInt(v(cls)) || fb;
-
+  const v=cls=>card.querySelector(cls)?.value??'';
+  const n=(cls,fb=0)=>parseFloat(v(cls))||fb;
+  const i=(cls,fb=0)=>parseInt(v(cls))||fb;
   return {
-    name:             v('.name-input') || `Group ${cardCounter}`,
-    count:            i('.sg-count'),
-    hp:               i('.sg-hp'),
-    fp:               i('.sg-fp'),
-    numRolls:         i('.sg-rolls', 1),
-    rollAddon:        n('.sg-addon'),
-    rollMultiplier:   n('.sg-mult', 1),
-    mitigation:       i('.sg-mit') / 100,
-    evasion:          i('.sg-ev') / 100,
-    dodges:           i('.sg-dodges'),
-    counter:          i('.sg-ctr') / 100,
-    abilityDamage:    i('.sg-adm'),
-    abilityShipsHit:  i('.sg-ash', 1),
-    abilityUndodgeable: v('.sg-aun') === 'yes',
-    abilitySpillover:   v('.sg-asp') === 'yes',
+    name:          v('.name-input')||`Group ${cardCounter}`,
+    count:         i('.sg-count'),
+    hp:            i('.sg-hp'),
+    fp:            i('.sg-fp'),
+    numRolls:      i('.sg-rolls',1),
+    rollAddon:     n('.sg-addon'),
+    rollMultiplier:n('.sg-mult',1),
+    mitigation:    i('.sg-mit')/100,
+    evasion:       i('.sg-ev')/100,
+    dodges:        i('.sg-dodges'),
+    counter:       i('.sg-ctr')/100,
+    undodgeable:   v('.sg-undodgeable')==='yes',
+    abilityDamage: i('.sg-adm'),
+    abilityShipsHit:i('.sg-ash',1),
+    abilityHitAll: v('.sg-ahitall')==='yes',
+    abilityUndodgeable: v('.sg-aun')==='yes',
+    abilitySpillover:   v('.sg-asp')==='yes',
+    abilityRoll:        v('.sg-aroll')==='yes',
   };
 }
 
-// ═══════════════════════════════════════════════
-//  MID-TURN ABILITY ROW BUILDER
-// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
+//  MID-TURN ROW
+// ═══════════════════════════════════════════════════════
 function addAbilityRow() {
   const container = document.getElementById('ability-rows');
   const row = document.createElement('div');
-  row.className = 'ability-row';
-  row.innerHTML = `
-    <div class="field" style="min-width:120px">
-      <label>Attacker</label>
-      <select class="mid-attacker">
-        <option value="A">Team A</option>
-        <option value="B">Team B</option>
-      </select>
+  row.className='ability-row';
+  row.innerHTML=`
+    <div class="field" style="min-width:110px"><label>Attacker</label>
+      <select class="mid-attacker"><option value="A">Team A</option><option value="B">Team B</option></select>
     </div>
     <div class="field"><label>Damage</label><input type="number" class="mid-damage" placeholder="0" min="0"></div>
     <div class="field"><label>Ships Hit</label><input type="number" class="mid-ships-hit" placeholder="1" min="1"></div>
-    <div class="field">
-      <label>Undodgeable</label>
-      <select class="mid-undodgeable">
-        <option value="no">No</option>
-        <option value="yes">Yes</option>
-      </select>
+    <div class="field"><label>Hit All</label>
+      <select class="mid-hit-all"><option value="no">No</option><option value="yes">Yes — All</option></select>
     </div>
-    <div class="field">
-      <label>Spillover</label>
-      <select class="mid-spillover">
-        <option value="no">No</option>
-        <option value="yes">Yes</option>
-      </select>
+    <div class="field"><label>Undodgeable</label>
+      <select class="mid-undodgeable"><option value="no">No</option><option value="yes">Yes</option></select>
     </div>
-    <button class="remove-btn" onclick="this.closest('.ability-row').remove()">✕</button>`;
+    <div class="field"><label>Spillover</label>
+      <select class="mid-spillover"><option value="no">No</option><option value="yes">Yes</option></select>
+    </div>
+    <div class="field"><label>Roll Dmg</label>
+      <select class="mid-roll"><option value="no">No — Flat</option><option value="yes">Yes — Roll</option></select>
+    </div>
+    <button class="row-remove" onclick="this.closest('.ability-row').remove()">✕</button>`;
   container.appendChild(row);
 }
 
-// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
+//  SAVE / LOAD
+// ═══════════════════════════════════════════════════════
+const STORAGE_KEY = 'fcs_configs';
+
+function getConfigs() {
+  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}'); } catch { return {}; }
+}
+function putConfigs(obj) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(obj));
+}
+
+function saveConfig() {
+  const name = document.getElementById('save-name').value.trim();
+  if (!name) { alert('Enter a config name first.'); return; }
+
+  const cards = [];
+  document.querySelectorAll('.ship-card').forEach(card => {
+    const cfg = readCardConfig(card);
+    cfg._team = card.dataset.team;
+    cards.push(cfg);
+  });
+
+  const configs = getConfigs();
+  configs[name] = cards;
+  putConfigs(configs);
+  renderSlots();
+  document.getElementById('save-name').value='';
+}
+
+function loadConfig(name) {
+  const configs = getConfigs();
+  const cards = configs[name];
+  if (!cards) return;
+
+  document.getElementById('team-a-ships').innerHTML='';
+  document.getElementById('team-b-ships').innerHTML='';
+
+  cards.forEach(cfg => {
+    addShipGroup(cfg._team);
+    // Fill in the values to the last added card
+    const allCards = document.querySelectorAll(`.ship-card[data-team="${cfg._team}"]`);
+    const card = allCards[allCards.length-1];
+    const set = (cls, val) => { const el=card.querySelector(cls); if(el) el.value=val; };
+    set('.name-input', cfg.name);
+    set('.sg-count', cfg.count);
+    set('.sg-hp', cfg.hp);
+    set('.sg-fp', cfg.fp);
+    set('.sg-rolls', cfg.numRolls);
+    set('.sg-addon', cfg.rollAddon);
+    set('.sg-mult', cfg.rollMultiplier);
+    set('.sg-mit', Math.round(cfg.mitigation*100));
+    set('.sg-ev', Math.round(cfg.evasion*100));
+    set('.sg-dodges', cfg.dodges);
+    set('.sg-ctr', Math.round(cfg.counter*100));
+    set('.sg-undodgeable', cfg.undodgeable?'yes':'no');
+    set('.sg-adm', cfg.abilityDamage);
+    set('.sg-ash', cfg.abilityShipsHit);
+    set('.sg-ahitall', cfg.abilityHitAll?'yes':'no');
+    set('.sg-aun', cfg.abilityUndodgeable?'yes':'no');
+    set('.sg-asp', cfg.abilitySpillover?'yes':'no');
+    set('.sg-aroll', cfg.abilityRoll?'yes':'no');
+  });
+}
+
+function deleteConfig(name) {
+  const configs = getConfigs();
+  delete configs[name];
+  putConfigs(configs);
+  renderSlots();
+}
+
+function renderSlots() {
+  const list = document.getElementById('slot-list');
+  list.innerHTML='';
+  const configs = getConfigs();
+  Object.keys(configs).forEach(name => {
+    const chip = document.createElement('div');
+    chip.className='slot-chip';
+    chip.innerHTML=`<button onclick="loadConfig(${JSON.stringify(name)})">${name}</button><button class="del-slot" onclick="deleteConfig(${JSON.stringify(name)})">✕</button>`;
+    list.appendChild(chip);
+  });
+}
+
+// ═══════════════════════════════════════════════════════
 //  INIT
-// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════
 window.onload = () => {
   addShipGroup('A');
   addShipGroup('B');
+  renderSlots();
   updateUI();
 };
 </script>
