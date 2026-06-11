@@ -433,6 +433,15 @@ function pickTarget(pool) {
 function pickFromGroups(groups) {
   return pickTarget(buildPool(groups));
 }
+// Fisher-Yates shuffle — returns a new shuffled array
+function shuffle(arr) {
+  const a = arr.slice();
+  for (let i=a.length-1;i>0;i--) {
+    const j = Math.floor(Math.random()*(i+1));
+    [a[i],a[j]] = [a[j],a[i]];
+  }
+  return a;
+}
 
 // ═══════════════════════════════════════════════════════
 //  DODGE CHECK
@@ -528,17 +537,24 @@ function firePreBattle(attackers, defenders) {
     const hitsLabel = hitAll ? 'ALL' : String(atk.abilityShipsHit);
     log(`${atk.name} pre-battle ability — ${hitsLabel} hits @ ${atk.abilityRoll?'roll('+atk.abilityDamage+')':atk.abilityDamage} dmg | undodgeable:${atk.abilityUndodgeable?'Y':'N'} spillover:${atk.abilitySpillover?'Y':'N'}`, 'special');
 
-    // Snapshot hit count BEFORE any kills happen this ability
-    // hitAll: one hit per ship currently alive (weighted pool size at time of cast)
-    const hitsTotal = hitAll ? buildPool(defenders).length : atk.abilityShipsHit;
-    let hitsLeft = hitsTotal;
+    // Build target list — hitAll: shuffled snapshot of every ship (each hit exactly once)
+    //                     otherwise: N random picks from live weighted pool
+    let targets;
+    if (hitAll) {
+      targets = shuffle(buildPool(defenders)); // every ship once, random order
+    } else {
+      // Build N random picks up front from current pool
+      const pool = buildPool(defenders);
+      targets = [];
+      for (let h=0; h<atk.abilityShipsHit; h++) {
+        if (!pool.length) break;
+        targets.push(pool[Math.floor(Math.random()*pool.length)]);
+      }
+    }
 
-    while (hitsLeft > 0) {
-      // Rebuild pool each hit so dead ships (from spillover) are excluded
-      const livePool = buildPool(defenders);
-      if (!livePool.length) { log('  No targets remain.','neutral',1); break; }
-      const target = pickTarget(livePool);
-      if (!target) break;
+    for (const target of targets) {
+      // Skip ships killed by earlier spillover in this ability
+      if (!target.isAlive()) continue;
 
       const dodge = checkDodge(target, atk.abilityUndodgeable);
       if (dodge==='guaranteed') { log(`  ${target.name}: guaranteed dodge (${target.dodgePool} left)`, 'neutral',1); }
@@ -548,7 +564,6 @@ function firePreBattle(attackers, defenders) {
         const {final, shipsLost} = applyHit(target, dmg, atk.abilitySpillover, defenders);
         log(`  Hit ${target.name} — ${final} dmg${shipsLost>0?' → '+shipsLost+' lost':''}`, 'special',1);
       }
-      hitsLeft--;
     }
   });
   return used;
@@ -731,16 +746,22 @@ function useMidTurnAbilities() {
     const hitsLabel = hitAll ? 'ALL' : String(shipsHit);
     log(`[Ability #${idx+1}] Team ${atTeam} — ${hitsLabel} hits @ ${doRoll?'roll('+dmg+')':dmg} | undodgeable:${undodge?'Y':'N'} spillover:${spill?'Y':'N'}`, 'midturn');
 
-    // Snapshot hit count before any kills this ability
-    const hitsTotal = hitAll ? buildPool(defenders).length : shipsHit;
-    let hitsLeft = hitsTotal;
+    // Build target list — hitAll: shuffled snapshot (each ship hit exactly once)
+    //                     otherwise: N random picks from live weighted pool
+    let midTargets;
+    if (hitAll) {
+      midTargets = shuffle(buildPool(defenders));
+    } else {
+      const pool = buildPool(defenders);
+      midTargets = [];
+      for (let h=0; h<shipsHit; h++) {
+        if (!pool.length) break;
+        midTargets.push(pool[Math.floor(Math.random()*pool.length)]);
+      }
+    }
 
-    while (hitsLeft > 0) {
-      // Rebuild pool each hit — excludes ships killed by prior hits/spillover
-      const livePool = buildPool(defenders);
-      if (!livePool.length) { log('  No targets remain.','neutral',1); break; }
-      const target = pickTarget(livePool);
-      if (!target) break;
+    for (const target of midTargets) {
+      if (!target.isAlive()) continue;
 
       const dodge = checkDodge(target, undodge);
       if (dodge==='guaranteed') { log(`  ${target.name}: guar. dodge (${target.dodgePool} left)`,'neutral',1); }
@@ -752,7 +773,6 @@ function useMidTurnAbilities() {
         const {final, shipsLost} = applyHit(target, finalDmg, spill, defenders);
         log(`  Hit ${target.name} — ${final} dmg${shipsLost>0?' → '+shipsLost+' lost':''}`, 'midturn',1);
       }
-      hitsLeft--;
     }
   });
 
