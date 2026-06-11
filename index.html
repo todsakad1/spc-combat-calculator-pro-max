@@ -353,24 +353,37 @@ function applyHit(group, rawDamage, spillover, allGroups) {
   let dmgLeft = final, shipsLost = 0;
   if (group.individualHp <= 0) return {final, shipsLost};
 
-  while (dmgLeft > 0 && group.currentCount > 0) {
-    const rem = group.individualHp - group._dmgOnFront;
-    if (dmgLeft >= rem) { dmgLeft -= rem; group._dmgOnFront = 0; group.currentCount--; shipsLost++; }
-    else { group._dmgOnFront += dmgLeft; dmgLeft = 0; }
-  }
-  if (group.currentCount < 0) group.currentCount = 0;
+  const rem = group.individualHp - group._dmgOnFront;
+  if (dmgLeft >= rem) {
+    // Kills the front ship
+    dmgLeft -= rem;
+    group._dmgOnFront = 0;
+    group.currentCount = Math.max(0, group.currentCount - 1);
+    shipsLost = 1;
 
-  // spillover to random other group
-  if (spillover && dmgLeft > 0) {
-    const others = allGroups.filter(g => g !== group && g.isAlive());
-    if (others.length > 0) {
-      const next = others[Math.floor(Math.random()*others.length)];
-      const r = applyHit(next, dmgLeft / (1 - next.damageMitigation || 1e-9), true, allGroups);
-      // re-call with already-mitigated value converted back to raw — simpler: use raw directly
-      // (we pass remaining mitigated damage as raw, next group re-mitigates it)
-      shipsLost += r.shipsLost;
+    if (spillover && dmgLeft > 0) {
+      // Continue through remaining ships in this group
+      while (dmgLeft > 0 && group.currentCount > 0) {
+        const rem2 = group.individualHp - group._dmgOnFront;
+        if (dmgLeft >= rem2) { dmgLeft -= rem2; group._dmgOnFront = 0; group.currentCount--; shipsLost++; }
+        else { group._dmgOnFront += dmgLeft; dmgLeft = 0; }
+      }
+      // Then spill to a random other group
+      if (dmgLeft > 0) {
+        const others = allGroups.filter(g => g !== group && g.isAlive());
+        if (others.length > 0) {
+          const next = others[Math.floor(Math.random() * others.length)];
+          const r = applyHit(next, dmgLeft / Math.max(0.01, 1 - next.damageMitigation), true, allGroups);
+          shipsLost += r.shipsLost;
+        }
+      }
     }
+    // spillover OFF: overkill damage is discarded here
+  } else {
+    // Damages front ship but doesn't kill it
+    group._dmgOnFront += dmgLeft;
   }
+
   return {final, shipsLost};
 }
 
@@ -515,19 +528,16 @@ function firePreBattle(attackers, defenders) {
     const hitsLabel = hitAll ? 'ALL' : String(atk.abilityShipsHit);
     log(`${atk.name} pre-battle ability — ${hitsLabel} hits @ ${atk.abilityRoll?'roll('+atk.abilityDamage+')':atk.abilityDamage} dmg | undodgeable:${atk.abilityUndodgeable?'Y':'N'} spillover:${atk.abilitySpillover?'Y':'N'}`, 'special');
 
-    let hitsLeft;
-    if (hitAll) {
-      // target every surviving ship once (weighted pool)
-      const pool = buildPool(defenders);
-      hitsLeft = pool.length;
-    } else {
-      hitsLeft = atk.abilityShipsHit;
-    }
+    // Snapshot hit count BEFORE any kills happen this ability
+    // hitAll: one hit per ship currently alive (weighted pool size at time of cast)
+    const hitsTotal = hitAll ? buildPool(defenders).length : atk.abilityShipsHit;
+    let hitsLeft = hitsTotal;
 
     while (hitsLeft > 0) {
-      const targets = defenders.filter(g=>g.isAlive());
-      if (!targets.length) { log('  No targets remain.','neutral',1); break; }
-      const target = pickFromGroups(targets);
+      // Rebuild pool each hit so dead ships (from spillover) are excluded
+      const livePool = buildPool(defenders);
+      if (!livePool.length) { log('  No targets remain.','neutral',1); break; }
+      const target = pickTarget(livePool);
       if (!target) break;
 
       const dodge = checkDodge(target, atk.abilityUndodgeable);
@@ -721,17 +731,15 @@ function useMidTurnAbilities() {
     const hitsLabel = hitAll ? 'ALL' : String(shipsHit);
     log(`[Ability #${idx+1}] Team ${atTeam} — ${hitsLabel} hits @ ${doRoll?'roll('+dmg+')':dmg} | undodgeable:${undodge?'Y':'N'} spillover:${spill?'Y':'N'}`, 'midturn');
 
-    let hitsLeft;
-    if (hitAll) {
-      hitsLeft = buildPool(defenders).length;
-    } else {
-      hitsLeft = shipsHit;
-    }
+    // Snapshot hit count before any kills this ability
+    const hitsTotal = hitAll ? buildPool(defenders).length : shipsHit;
+    let hitsLeft = hitsTotal;
 
     while (hitsLeft > 0) {
-      const targets = defenders.filter(g=>g.isAlive());
-      if (!targets.length) { log('  No targets remain.','neutral',1); break; }
-      const target = pickFromGroups(targets);
+      // Rebuild pool each hit — excludes ships killed by prior hits/spillover
+      const livePool = buildPool(defenders);
+      if (!livePool.length) { log('  No targets remain.','neutral',1); break; }
+      const target = pickTarget(livePool);
       if (!target) break;
 
       const dodge = checkDodge(target, undodge);
