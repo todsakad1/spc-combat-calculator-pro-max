@@ -168,6 +168,25 @@ body{background:var(--bg);color:var(--text);font-family:'Barlow',sans-serif;min-
 .confirm-box p{color:var(--text);margin-bottom:22px;font-size:.9rem;line-height:1.5}
 .confirm-box .actions{display:flex;gap:10px;justify-content:center}
 abbr{text-decoration:none;cursor:help;border-bottom:1px dotted var(--muted)}
+/* toggle switch */
+.toggle-wrap { display:flex; align-items:center; gap:8px; padding-top:2px; }
+.toggle-switch { position:relative; width:36px; height:20px; flex-shrink:0; }
+.toggle-switch input { opacity:0; width:0; height:0; position:absolute; }
+.toggle-track {
+  position:absolute; inset:0;
+  background:var(--border-hi); border-radius:20px;
+  cursor:pointer; transition:background .2s;
+}
+.toggle-switch input:checked + .toggle-track { background:var(--accent); }
+.toggle-thumb {
+  position:absolute; top:3px; left:3px;
+  width:14px; height:14px; border-radius:50%;
+  background:#fff; transition:transform .2s; pointer-events:none;
+}
+.toggle-switch input:checked + .toggle-track .toggle-thumb { transform:translateX(16px); }
+.toggle-label { font-family:'Share Tech Mono',monospace; font-size:.72rem; color:var(--muted); user-select:none; cursor:pointer; }
+.toggle-label.on { color:var(--accent); }
+
 </style>
 </head>
 <body>
@@ -284,180 +303,225 @@ abbr{text-decoration:none;cursor:help;border-bottom:1px dotted var(--muted)}
 </div>
 
 <script>
+'use strict';
 // ═══════════════════════════════════════════════════════
 //  STATE
 // ═══════════════════════════════════════════════════════
-let sim = {
-  teamA:[], teamB:[], turn:1, active:false,
-  phase:'SETUP', midTurnUsed:false
-};
+let sim = { teamA:[], teamB:[], turn:1, active:false, phase:'SETUP', midTurnUsed:false };
 let cardCounter = 0;
-// Per-turn summary data
 let turnSummaries = [];
 
 // ═══════════════════════════════════════════════════════
-//  SHIP GROUP
+//  TOGGLE HELPER
+// ═══════════════════════════════════════════════════════
+let _tid = 0;
+function mkToggle(cls, label, checked=false) {
+  const id = 'tgl-'+(++_tid);
+  return `<div class="toggle-wrap"><label class="toggle-switch"><input type="checkbox" id="${id}" class="${cls}"${checked?' checked':''}><div class="toggle-track"><div class="toggle-thumb"></div></div></label><label class="toggle-label" for="${id}">${label}</label></div>`;
+}
+
+// ═══════════════════════════════════════════════════════
+//  SHIP GROUP — per-ship HP model
 // ═══════════════════════════════════════════════════════
 class ShipGroup {
-  constructor(c) {
-    this.name             = c.name || 'Unnamed';
-    this.individualHp     = c.hp;
-    this.maxCount         = c.count;
-    this.currentCount     = c.count;
-    this.fp               = c.fp;
-    this.numRolls         = c.numRolls;
-    this.rollAddon        = c.rollAddon;
-    this.rollMultiplier   = c.rollMultiplier;
-    this.damageMitigation = c.mitigation;
-    this.evasion          = c.evasion;
-    this.guaranteedDodges = c.dodges;
-    this.dodgePool        = c.count * c.dodges;
-    this.counterChance    = c.counter;
-    this.undodgeable      = c.undodgeable;   // normal attacks undodgeable toggle
+  constructor(cfg) {
+    this.name             = cfg.name || 'Unnamed';
+    this.baseHp           = cfg.hp;
+    this.maxCount         = cfg.count;
+    this.fp               = cfg.fp;
+    this.numRolls         = cfg.numRolls;
+    this.rollAddon        = cfg.rollAddon;
+    this.rollMultiplier   = cfg.rollMultiplier;
+    this.damageMitigation = cfg.mitigation;
+    this.evasion          = cfg.evasion;
+    this.guaranteedDodges = cfg.dodges;
+    this.dodgePool        = cfg.count * cfg.dodges;
+    this.counterChance    = cfg.counter;
+    this.undodgeable      = cfg.undodgeable;
+    this.stunOnHit        = cfg.stunOnHit;
+    this.stunImmune       = cfg.stunImmune;
+    this.threatTier       = cfg.threatTier ?? 0;   // defender: lower = higher priority
+    this.targetingMode    = cfg.targetingMode || 'none'; // attacker: none | weighted | ordered
     // pre-battle ability
-    this.abilityDamage    = c.abilityDamage;
-    this.abilityShipsHit  = c.abilityShipsHit;
-    this.abilityHitAll    = c.abilityHitAll;
-    this.abilityUndodgeable = c.abilityUndodgeable;
-    this.abilitySpillover = c.abilitySpillover;
-    this.abilityRoll      = c.abilityRoll;   // whether ability rolls damage
-    // runtime
-    this.damageBuffer     = 0;
-    this._dmgOnFront      = 0;
+    this.abilityDamage      = cfg.abilityDamage;
+    this.abilityShipsHit    = cfg.abilityShipsHit;
+    this.abilityHitAll      = cfg.abilityHitAll;
+    this.abilityTarget      = cfg.abilityTarget || 'random'; // 'random' | group name
+    this.abilityUndodgeable = cfg.abilityUndodgeable;
+    this.abilitySpillover   = cfg.abilitySpillover;
+    this.abilityRoll        = cfg.abilityRoll;
+    this.abilityStun        = cfg.abilityStun;
+    // per-ship HP: index=shipId, null=dead
+    this.shipHp = Array.from({length: cfg.count}, () => cfg.hp);
+    // per-ship stun: Set of indices stunned NEXT turn
+    this.stunned    = new Set();
+    this._pendingStun = null;
+    // per-ship damage buffer for current turn {idx: rawDmg}
+    this.dmgBuffer = {};
   }
+
+  get currentCount() { return this.shipHp.filter(h => h !== null).length; }
+  get aliveIndices()  { return this.shipHp.map((h,i) => h!==null ? i : null).filter(i => i!==null); }
   isAlive()     { return this.currentCount > 0; }
   isDestroyed() { return this.currentCount <= 0; }
 
   rollAttack() {
     const min = 5;
-    let roll = this.fp <= min ? this.fp : Math.floor(Math.random()*(this.fp-min+1))+min;
+    const roll = this.fp <= min ? this.fp : Math.floor(Math.random()*(this.fp-min+1))+min;
     return Math.max(0, Math.ceil((roll + this.rollAddon) * this.rollMultiplier));
   }
-
-  // Roll ability damage (min 5, max = abilityDamage)
-  rollAbilityDamage() {
-    const min = 5;
-    const max = this.abilityDamage;
-    if (max <= min) return max;
-    return Math.floor(Math.random()*(max-min+1))+min;
+  rollAbilityDmg() {
+    const min=5, max=this.abilityDamage;
+    return max<=min ? max : Math.floor(Math.random()*(max-min+1))+min;
   }
-
   toString() { return `${this.name} (${this.currentCount}/${this.maxCount})`; }
-}
-
-// ═══════════════════════════════════════════════════════
-//  DAMAGE APPLICATION (abilities / mid-turn — immediate)
-// ═══════════════════════════════════════════════════════
-function applyHit(group, rawDamage, spillover, allGroups) {
-  const final = Math.max(0, Math.ceil(rawDamage * (1 - group.damageMitigation)));
-  let dmgLeft = final, shipsLost = 0;
-  if (group.individualHp <= 0) return {final, shipsLost};
-
-  const rem = group.individualHp - group._dmgOnFront;
-  if (dmgLeft >= rem) {
-    // Kills the front ship
-    dmgLeft -= rem;
-    group._dmgOnFront = 0;
-    group.currentCount = Math.max(0, group.currentCount - 1);
-    shipsLost = 1;
-
-    if (spillover && dmgLeft > 0) {
-      // Continue through remaining ships in this group
-      while (dmgLeft > 0 && group.currentCount > 0) {
-        const rem2 = group.individualHp - group._dmgOnFront;
-        if (dmgLeft >= rem2) { dmgLeft -= rem2; group._dmgOnFront = 0; group.currentCount--; shipsLost++; }
-        else { group._dmgOnFront += dmgLeft; dmgLeft = 0; }
-      }
-      // Then spill to a random other group
-      if (dmgLeft > 0) {
-        const others = allGroups.filter(g => g !== group && g.isAlive());
-        if (others.length > 0) {
-          const next = others[Math.floor(Math.random() * others.length)];
-          const r = applyHit(next, dmgLeft / Math.max(0.01, 1 - next.damageMitigation), true, allGroups);
-          shipsLost += r.shipsLost;
-        }
-      }
-    }
-    // spillover OFF: overkill damage is discarded here
-  } else {
-    // Damages front ship but doesn't kill it
-    group._dmgOnFront += dmgLeft;
-  }
-
-  return {final, shipsLost};
-}
-
-// ═══════════════════════════════════════════════════════
-//  AFTERMATH: apply buffered damage with spillover
-// ═══════════════════════════════════════════════════════
-function resolveBuffer(group, allGroups) {
-  if (group.damageBuffer <= 0) return {raw:0, mitigated:0, shipsLost:0};
-  const raw = group.damageBuffer;
-  const mitigated = Math.max(0, Math.ceil(raw * (1 - group.damageMitigation)));
-  group.damageBuffer = 0;
-  let dmgLeft = mitigated, shipsLost = 0;
-
-  if (group.individualHp > 0) {
-    while (dmgLeft > 0 && group.currentCount > 0) {
-      const rem = group.individualHp - group._dmgOnFront;
-      if (dmgLeft >= rem) { dmgLeft -= rem; group._dmgOnFront = 0; group.currentCount--; shipsLost++; }
-      else { group._dmgOnFront += dmgLeft; dmgLeft = 0; }
-    }
-    if (group.currentCount < 0) group.currentCount = 0;
-  }
-
-  // spillover residual
-  if (dmgLeft > 0) {
-    const others = allGroups.filter(g => g !== group && g.isAlive());
-    if (others.length > 0) {
-      const next = others[Math.floor(Math.random()*others.length)];
-      next.damageBuffer += dmgLeft / Math.max(0.01, 1 - next.damageMitigation); // convert back to raw for next group's mitigation
-      const r2 = resolveBuffer(next, allGroups);
-      shipsLost += r2.shipsLost;
-    }
-  }
-  return {raw, mitigated, shipsLost};
 }
 
 // ═══════════════════════════════════════════════════════
 //  TARGETING
 // ═══════════════════════════════════════════════════════
-function buildPool(groups) {
+function buildShipPool(groups) {
   const pool = [];
-  groups.forEach(g => { if (g.isAlive()) for (let i=0;i<g.currentCount;i++) pool.push(g); });
+  groups.forEach(g => { if (g.isAlive()) g.aliveIndices.forEach(i => pool.push({group:g, shipIdx:i})); });
   return pool;
 }
-function pickTarget(pool) {
+function pickShip(pool) {
   return pool.length ? pool[Math.floor(Math.random()*pool.length)] : null;
 }
-function pickFromGroups(groups) {
-  return pickTarget(buildPool(groups));
-}
-// Fisher-Yates shuffle — returns a new shuffled array
 function shuffle(arr) {
   const a = arr.slice();
-  for (let i=a.length-1;i>0;i--) {
-    const j = Math.floor(Math.random()*(i+1));
-    [a[i],a[j]] = [a[j],a[i]];
-  }
+  for (let i=a.length-1;i>0;i--) { const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; }
   return a;
+}
+// Build pool filtered to a specific group name (or all if 'random')
+function buildTargetPool(defenders, targetName) {
+  if (!targetName || targetName === 'random') return buildShipPool(defenders);
+  const specific = defenders.filter(g => g.name === targetName && g.isAlive());
+  return specific.length ? buildShipPool(specific) : buildShipPool(defenders);
+}
+
+// Build priority-aware pool based on attacker's targetingMode and defenders' threatTiers
+function buildPriorityPool(attacker, defenders) {
+  const alive = defenders.filter(g => g.isAlive());
+  if (!alive.length) return [];
+  const mode = attacker.targetingMode || 'none';
+
+  if (mode === 'ordered') {
+    // Find lowest tier present among alive groups
+    const minTier = Math.min(...alive.map(g => g.threatTier));
+    const frontline = alive.filter(g => g.threatTier === minTier);
+    // If frontline is ALL groups, tiers are broken — open fire on everyone
+    return buildShipPool(frontline);
+  }
+
+  if (mode === 'weighted') {
+    // Weight inversely by tier: tier 0 gets highest weight, tier N gets lower
+    // Weight = max_tier - tier + 1, so lower tier = more slots in pool
+    const maxTier = Math.max(...alive.map(g => g.threatTier));
+    const pool = [];
+    alive.forEach(g => {
+      const weight = (maxTier - g.threatTier + 1);
+      const ships = buildShipPool([g]);
+      // Each ship gets weight copies in pool
+      for (let w = 0; w < weight; w++) ships.forEach(s => pool.push(s));
+    });
+    return pool;
+  }
+
+  // none — standard weighted-by-count pool
+  return buildShipPool(alive);
 }
 
 // ═══════════════════════════════════════════════════════
 //  DODGE CHECK
 // ═══════════════════════════════════════════════════════
-function checkDodge(target, undodgeable) {
+function checkDodge(tgt, undodgeable) {
   if (undodgeable) return false;
-  if (target.dodgePool > 0) { target.dodgePool--; return 'guaranteed'; }
-  if (Math.random() < target.evasion) return 'evade';
+  const g = tgt.group || tgt;
+  if (g.dodgePool > 0) { g.dodgePool--; return 'guaranteed'; }
+  if (Math.random() < g.evasion) return 'evade';
   return false;
+}
+
+// ═══════════════════════════════════════════════════════
+//  APPLY HIT (immediate — abilities / mid-turn)
+//  tgt = {group, shipIdx}
+// ═══════════════════════════════════════════════════════
+function applyHit(tgt, rawDmg, spillover, allGroups, stun=false, attackerName='') {
+  const {group, shipIdx} = tgt;
+  if (group.shipHp[shipIdx] === null) return {final:0, shipsLost:0, killedGroups:[]};
+
+  const final = Math.max(0, Math.ceil(rawDmg * (1 - group.damageMitigation)));
+  let dmgLeft = final, shipsLost = 0;
+  const killedGroups = [];
+
+  if (stun && !group.stunImmune) group.stunned.add(shipIdx);
+
+  if (dmgLeft >= group.shipHp[shipIdx]) {
+    dmgLeft -= group.shipHp[shipIdx];
+    group.shipHp[shipIdx] = null;
+    group.stunned.delete(shipIdx);
+    shipsLost++;
+    if (group.isDestroyed()) killedGroups.push({groupName:group.name, killer:attackerName});
+
+    if (spillover && dmgLeft > 0) {
+      const nextPool = buildShipPool(allGroups);
+      const next = pickShip(nextPool);
+      if (next) {
+        const r = applyHit(next, dmgLeft / Math.max(0.01, 1-next.group.damageMitigation), true, allGroups, false, attackerName);
+        shipsLost += r.shipsLost;
+        killedGroups.push(...r.killedGroups);
+      }
+    }
+  } else {
+    group.shipHp[shipIdx] -= dmgLeft;
+  }
+  return {final, shipsLost, killedGroups};
+}
+
+// ═══════════════════════════════════════════════════════
+//  RESOLVE BUFFERS (aftermath — per-ship damage)
+// ═══════════════════════════════════════════════════════
+function resolveBuffers(group, allGroups, attackerName='') {
+  let raw=0, mitigated=0, shipsLost=0;
+  const killedGroups = [];
+
+  for (const [idxStr, bufEntry] of Object.entries(group.dmgBuffer)) {
+    const idx = parseInt(idxStr);
+    if (group.shipHp[idx] === null) continue;
+    const bufRaw = typeof bufEntry === 'object' ? bufEntry.total : bufEntry;
+    const lastAttacker = typeof bufEntry === 'object' ? bufEntry.lastAttacker : attackerName;
+    raw += bufRaw;
+    const mit = Math.max(0, Math.ceil(bufRaw * (1 - group.damageMitigation)));
+    mitigated += mit;
+    let dmgLeft = mit;
+
+    if (dmgLeft >= group.shipHp[idx]) {
+      dmgLeft -= group.shipHp[idx];
+      group.shipHp[idx] = null;
+      group.stunned.delete(idx);
+      shipsLost++;
+      if (group.isDestroyed()) killedGroups.push({groupName:group.name, killer:lastAttacker||attackerName});
+      if (dmgLeft > 0) {
+        const next = pickShip(buildShipPool(allGroups));
+        if (next) {
+          const r = applyHit(next, dmgLeft / Math.max(0.01, 1-next.group.damageMitigation), true, allGroups, false, attackerName);
+          shipsLost += r.shipsLost;
+          killedGroups.push(...r.killedGroups);
+        }
+      }
+    } else {
+      group.shipHp[idx] -= dmgLeft;
+    }
+  }
+  group.dmgBuffer = {};
+  return {raw, mitigated, shipsLost, killedGroups};
 }
 
 // ═══════════════════════════════════════════════════════
 //  LOGGING
 // ═══════════════════════════════════════════════════════
-let logLines = [];  // plain text for copy
-
+let logLines = [];
 function log(msg, type='info', indent=0) {
   const el = document.getElementById('battle-log');
   const span = document.createElement('span');
@@ -465,29 +529,18 @@ function log(msg, type='info', indent=0) {
   span.innerHTML = msg;
   el.appendChild(span);
   el.scrollTop = el.scrollHeight;
-  // store plain text
-  const prefix = indent===1?'  ':indent===2?'    ':'';
-  logLines.push(prefix + msg.replace(/<[^>]+>/g,''));
+  logLines.push(('  '.repeat(indent)) + msg.replace(/<[^>]+>/g,''));
 }
 function logSep(label, type='header-line') { log(`━━ ${label} ━━`, type); }
-function clearLog() {
-  document.getElementById('battle-log').innerHTML = '';
-  logLines = [];
-}
+function clearLog() { document.getElementById('battle-log').innerHTML=''; logLines=[]; }
 function copyLog() {
   const text = logLines.join('\n');
-  navigator.clipboard.writeText(text).then(() => {
-    const btn = document.querySelector('[onclick="copyLog()"]');
-    const orig = btn.textContent;
-    btn.textContent = 'Copied!';
-    setTimeout(()=>btn.textContent=orig, 1500);
-  }).catch(()=>{
-    // fallback
-    const ta = document.createElement('textarea');
-    ta.value = text; document.body.appendChild(ta);
-    ta.select(); document.execCommand('copy');
-    document.body.removeChild(ta);
-  });
+  navigator.clipboard.writeText(text).catch(()=>{
+    const ta=document.createElement('textarea'); ta.value=text;
+    document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+  }).then(()=>{}).catch(()=>{});
+  const btn = document.querySelector('[onclick="copyLog()"]');
+  const orig = btn.textContent; btn.textContent='Copied!'; setTimeout(()=>btn.textContent=orig,1500);
 }
 
 // ═══════════════════════════════════════════════════════
@@ -501,13 +554,11 @@ function startBattle() {
     const sg = new ShipGroup(cfg);
     if (card.dataset.team==='A') gA.push(sg); else gB.push(sg);
   });
-  if (!gA.length || !gB.length) {
-    clearLog(); log('Both teams need at least one ship group.','defeat'); return;
-  }
+  if (!gA.length || !gB.length) { clearLog(); log('Both teams need at least one ship group.','defeat'); return; }
 
-  sim = { teamA:gA, teamB:gB, turn:1, active:true, phase:'PRE_BATTLE', midTurnUsed:false };
-  turnSummaries = [];
-  document.getElementById('summary-section').innerHTML = '';
+  sim = {teamA:gA, teamB:gB, turn:1, active:true, phase:'PRE_BATTLE', midTurnUsed:false};
+  turnSummaries=[];
+  document.getElementById('summary-section').innerHTML='';
   clearLog();
 
   logSep('BATTLE INITIALIZED','system');
@@ -519,7 +570,7 @@ function startBattle() {
   const fB = firePreBattle(sim.teamB, sim.teamA);
   if (!fA && !fB) log('No pre-battle abilities configured.','neutral');
 
-  sim.phase = 'ATTACK';
+  sim.phase='ATTACK';
   updateUI();
   if (checkBattleEnd()) return;
   log('Pre-battle complete. Press Attack Phase to begin Turn 1.','neutral');
@@ -531,39 +582,35 @@ function startBattle() {
 function firePreBattle(attackers, defenders) {
   let used = false;
   attackers.forEach(atk => {
-    if (atk.abilityDamage <= 0 || atk.isDestroyed()) return;
+    if (atk.abilityDamage<=0 || atk.isDestroyed()) return;
     used = true;
-    const hitAll = atk.abilityHitAll;
-    const hitsLabel = hitAll ? 'ALL' : String(atk.abilityShipsHit);
-    log(`${atk.name} pre-battle ability — ${hitsLabel} hits @ ${atk.abilityRoll?'roll('+atk.abilityDamage+')':atk.abilityDamage} dmg | undodgeable:${atk.abilityUndodgeable?'Y':'N'} spillover:${atk.abilitySpillover?'Y':'N'}`, 'special');
+    const hitsLabel = atk.abilityHitAll ? 'ALL' : String(atk.abilityShipsHit);
+    const dmgLabel  = atk.abilityRoll ? `roll(${atk.abilityDamage})` : String(atk.abilityDamage);
+    const tgtLabel  = atk.abilityTarget && atk.abilityTarget!=='random' ? atk.abilityTarget : 'random';
+    log(`${atk.name} pre-battle — ${hitsLabel} hits @ ${dmgLabel} | undodgeable:${atk.abilityUndodgeable?'Y':'N'} spillover:${atk.abilitySpillover?'Y':'N'} stun:${atk.abilityStun?'Y':'N'} target:${tgtLabel}`,'special');
 
-    // Build target list — hitAll: shuffled snapshot of every ship (each hit exactly once)
-    //                     otherwise: N random picks from live weighted pool
-    let targets;
-    if (hitAll) {
-      targets = shuffle(buildPool(defenders)); // every ship once, random order
+    const pool = buildTargetPool(defenders, atk.abilityTarget);
+    let tgts;
+    if (atk.abilityHitAll) {
+      tgts = shuffle(pool);
     } else {
-      // Build N random picks up front from current pool
-      const pool = buildPool(defenders);
-      targets = [];
+      tgts = [];
       for (let h=0; h<atk.abilityShipsHit; h++) {
         if (!pool.length) break;
-        targets.push(pool[Math.floor(Math.random()*pool.length)]);
+        tgts.push(pool[Math.floor(Math.random()*pool.length)]);
       }
     }
 
-    for (const target of targets) {
-      // Skip ships killed by earlier spillover in this ability
-      if (!target.isAlive()) continue;
-
-      const dodge = checkDodge(target, atk.abilityUndodgeable);
-      if (dodge==='guaranteed') { log(`  ${target.name}: guaranteed dodge (${target.dodgePool} left)`, 'neutral',1); }
-      else if (dodge==='evade') { log(`  ${target.name}: evaded`,'neutral',1); }
-      else {
-        const dmg = atk.abilityRoll ? atk.rollAbilityDamage() : atk.abilityDamage;
-        const {final, shipsLost} = applyHit(target, dmg, atk.abilitySpillover, defenders);
-        log(`  Hit ${target.name} — ${final} dmg${shipsLost>0?' → '+shipsLost+' lost':''}`, 'special',1);
-      }
+    for (const tgt of tgts) {
+      if (tgt.group.shipHp[tgt.shipIdx]===null) continue;
+      const dodge = checkDodge(tgt, atk.abilityUndodgeable);
+      if (dodge==='guaranteed') { log(`  ${tgt.group.name}#${tgt.shipIdx}: guar. dodge (${tgt.group.dodgePool} left)`,'neutral',1); continue; }
+      if (dodge==='evade')      { log(`  ${tgt.group.name}#${tgt.shipIdx}: evaded`,'neutral',1); continue; }
+      const dmg = atk.abilityRoll ? atk.rollAbilityDmg() : atk.abilityDamage;
+      const {final, shipsLost, killedGroups} = applyHit(tgt, dmg, atk.abilitySpillover, defenders, atk.abilityStun, atk.name);
+      const stunNote = atk.abilityStun && !tgt.group.stunImmune ? ' ⚡stun' : '';
+      log(`  Hit ${tgt.group.name}#${tgt.shipIdx} — ${final} dmg${shipsLost>0?' → '+shipsLost+' lost':''}${stunNote}`,'special',1);
+      killedGroups.forEach(k => log(`    ☠ ${k.groupName} wiped by ${k.killer}`,'special',2));
     }
   });
   return used;
@@ -575,92 +622,85 @@ function firePreBattle(attackers, defenders) {
 function runAttackPhase() {
   if (!sim.active || sim.phase!=='ATTACK') return;
 
-  sim.teamA.forEach(g => { g.damageBuffer=0; });
-  sim.teamB.forEach(g => { g.damageBuffer=0; });
+  // Reset damage buffers. stunned set carries from last turn — those ships sit out this phase.
+  [...sim.teamA,...sim.teamB].forEach(g => { g.dmgBuffer={}; });
 
-  logSep(`TURN ${sim.turn} — ATTACK PHASE`, 'header-line');
+  logSep(`TURN ${sim.turn} — ATTACK PHASE`,'header-line');
   log('All ships fire simultaneously. Deaths resolved in Aftermath.','neutral');
 
-  // Snapshot pools at start of turn (counts don't change mid-attack)
-  const snapPoolA = buildPool(sim.teamA);
-  const snapPoolB = buildPool(sim.teamB);
-
-  // Track damage for summary
+  const snapA = buildShipPool(sim.teamA);
+  const snapB = buildShipPool(sim.teamB);
   let rawToA=0, rawToB=0;
 
-  // ── Team A → Team B ──
-  log('Team A fires:','teamA');
-  sim.teamA.forEach(atk => {
+  const fireGroup = (atk, snapPool, enemyRawRef, friendlyRawRef, logType) => {
     if (atk.isDestroyed()) return;
-    for (let s=0; s<atk.currentCount; s++) {
-      for (let r=0; r<atk.numRolls; r++) {
-        const target = pickTarget(snapPoolB);
-        if (!target) continue;
+    const aliveIdx  = atk.aliveIndices;
+    const activeIdx = aliveIdx.filter(i => !atk.stunned.has(i));
+    const stunCount = aliveIdx.length - activeIdx.length;
+    if (stunCount>0) log(`  ${atk.name}: ${stunCount} ship(s) stunned — skipping`,'neutral',1);
 
-        // dodge check (respects undodgeable toggle on attacker)
-        const dodge = checkDodge(target, atk.undodgeable);
-        if (dodge==='guaranteed') { log(`  ${atk.name}→${target.name}: guar. dodge (${target.dodgePool} left)`,'neutral',1); continue; }
-        if (dodge==='evade')      { log(`  ${atk.name}→${target.name}: evaded`,'neutral',1); continue; }
+    for (const s of activeIdx) {
+      for (let r=0; r<atk.numRolls; r++) {
+        // Priority-aware targeting pool
+        const _defGroups = [...new Set(snapPool.filter(t=>t.group.shipHp[t.shipIdx]!==null).map(t=>t.group))];
+        const liveTgts = buildPriorityPool(atk, _defGroups);
+        const tgt = pickShip(liveTgts);
+        if (!tgt) continue;
+
+        const dodge = checkDodge(tgt, atk.undodgeable);
+        if (dodge==='guaranteed') { log(`  ${atk.name}→${tgt.group.name}#${tgt.shipIdx}: guar. dodge`,'neutral',1); continue; }
+        if (dodge==='evade')      { log(`  ${atk.name}→${tgt.group.name}#${tgt.shipIdx}: evaded`,'neutral',1); continue; }
 
         const raw = atk.rollAttack();
-        target.damageBuffer += raw;
-        rawToB += raw;
-        log(`  ${atk.name}→${target.name}: ${raw} raw`,'teamA',1);
+        const _buf = tgt.group.dmgBuffer[tgt.shipIdx] || {total:0, lastAttacker:''};
+        _buf.total += raw; _buf.lastAttacker = atk.name;
+        tgt.group.dmgBuffer[tgt.shipIdx] = _buf;
+        enemyRawRef.v += raw;
 
-        // Counterattack — attacker's own evasion applies
-        if (Math.random() < target.counterChance) {
-          const ctrDodge = checkDodge(atk, false); // attacker can dodge the counter
-          if (ctrDodge==='guaranteed') { log(`    ↩ ${target.name} counters — guar. dodge by ${atk.name} (${atk.dodgePool} left)`,'counter',2); }
-          else if (ctrDodge==='evade') { log(`    ↩ ${target.name} counters — evaded by ${atk.name}`,'counter',2); }
-          else {
-            const ctr = target.rollAttack();
-            atk.damageBuffer += ctr;
-            rawToA += ctr;
-            log(`    ↩ ${target.name} counters ${atk.name}: ${ctr} raw`,'counter',2);
-          }
+        if (atk.stunOnHit && !tgt.group.stunImmune) {
+          tgt.group._pendingStun = tgt.group._pendingStun || new Set();
+          tgt.group._pendingStun.add(tgt.shipIdx);
+          log(`  ${atk.name}→${tgt.group.name}#${tgt.shipIdx}: ${raw} raw ⚡stun`,logType,1);
+        } else {
+          log(`  ${atk.name}→${tgt.group.name}#${tgt.shipIdx}: ${raw} raw`,logType,1);
         }
-      }
-    }
-  });
 
-  // ── Team B → Team A ──
-  log('Team B fires:','teamB');
-  sim.teamB.forEach(atk => {
-    if (atk.isDestroyed()) return;
-    for (let s=0; s<atk.currentCount; s++) {
-      for (let r=0; r<atk.numRolls; r++) {
-        const target = pickTarget(snapPoolA);
-        if (!target) continue;
-
-        const dodge = checkDodge(target, atk.undodgeable);
-        if (dodge==='guaranteed') { log(`  ${atk.name}→${target.name}: guar. dodge (${target.dodgePool} left)`,'neutral',1); continue; }
-        if (dodge==='evade')      { log(`  ${atk.name}→${target.name}: evaded`,'neutral',1); continue; }
-
-        const raw = atk.rollAttack();
-        target.damageBuffer += raw;
-        rawToA += raw;
-        log(`  ${atk.name}→${target.name}: ${raw} raw`,'teamB',1);
-
-        if (Math.random() < target.counterChance) {
+        if (Math.random() < tgt.group.counterChance) {
           const ctrDodge = checkDodge(atk, false);
-          if (ctrDodge==='guaranteed') { log(`    ↩ ${target.name} counters — guar. dodge by ${atk.name} (${atk.dodgePool} left)`,'counter',2); }
-          else if (ctrDodge==='evade') { log(`    ↩ ${target.name} counters — evaded by ${atk.name}`,'counter',2); }
+          if (ctrDodge==='guaranteed') { log(`    ↩ ${tgt.group.name} counters — guar. dodge by ${atk.name}`,'counter',2); }
+          else if (ctrDodge==='evade') { log(`    ↩ ${tgt.group.name} counters — evaded by ${atk.name}`,'counter',2); }
           else {
-            const ctr = target.rollAttack();
-            atk.damageBuffer += ctr;
-            rawToB += ctr;
-            log(`    ↩ ${target.name} counters ${atk.name}: ${ctr} raw`,'counter',2);
+            const ctr = tgt.group.rollAttack();
+            const _cbuf = atk.dmgBuffer[s] || {total:0, lastAttacker:''};
+            _cbuf.total += ctr; _cbuf.lastAttacker = tgt.group.name + ' (counter)';
+            atk.dmgBuffer[s] = _cbuf;
+            friendlyRawRef.v += ctr;
+            log(`    ↩ ${tgt.group.name} counters ${atk.name}#${s}: ${ctr} raw`,'counter',2);
           }
         }
       }
     }
+  };
+
+  const refA={v:0}, refB={v:0};
+  log('Team A fires:','teamA');
+  sim.teamA.forEach(atk => fireGroup(atk, snapB, refB, refA, 'teamA'));
+  log('Team B fires:','teamB');
+  sim.teamB.forEach(atk => fireGroup(atk, snapA, refA, refB, 'teamB'));
+  rawToA=refA.v; rawToB=refB.v;
+
+  // Clear this turn's stuns, then commit next-turn stuns from _pendingStun
+  [...sim.teamA,...sim.teamB].forEach(g => {
+    g.stunned = new Set(); // ships stunned last turn have now served their skip
+    if (g._pendingStun) {
+      g._pendingStun.forEach(i => { if (g.shipHp[i]!==null) g.stunned.add(i); });
+      g._pendingStun = null;
+    }
   });
 
-  // Store for summary
   sim._pendingRawToA = rawToA;
   sim._pendingRawToB = rawToB;
-
-  sim.phase = 'AFTERMATH';
+  sim.phase='AFTERMATH';
   updateUI();
   log('Attack phase done. Press Apply Losses to resolve damage.','neutral');
 }
@@ -670,38 +710,34 @@ function runAttackPhase() {
 // ═══════════════════════════════════════════════════════
 function runAftermath() {
   if (!sim.active || sim.phase!=='AFTERMATH') return;
+  logSep(`TURN ${sim.turn} — AFTERMATH`,'header-line');
 
-  logSep(`TURN ${sim.turn} — AFTERMATH`, 'header-line');
-
-  const summaryData = { turn: sim.turn, teamA:[], teamB:[], rawToA: sim._pendingRawToA||0, rawToB: sim._pendingRawToB||0 };
-  let anyDmg = false;
-
+  const summaryData = {turn:sim.turn, teamA:[], teamB:[], rawToA:sim._pendingRawToA||0, rawToB:sim._pendingRawToB||0, kills:[]};
+  let anyDmg=false;
   const snapA = sim.teamA.map(g=>({name:g.name, before:g.currentCount}));
   const snapB = sim.teamB.map(g=>({name:g.name, before:g.currentCount}));
+  const all = [...sim.teamA,...sim.teamB];
 
   sim.teamA.forEach(g => {
-    if (g.damageBuffer<=0) return; anyDmg=true;
-    const {raw,mitigated,shipsLost} = resolveBuffer(g, sim.teamA);
+    if (!Object.keys(g.dmgBuffer).length) return; anyDmg=true;
+    const {raw,mitigated,shipsLost,killedGroups} = resolveBuffers(g, all);
     log(`${g.name}: ${raw} raw → ${mitigated} dmg → −${shipsLost} ships (${g.currentCount} remain)`,'teamA');
+    killedGroups.forEach(k => { log(`  ☠ ${k.groupName} wiped`,'teamA',1); summaryData.kills.push(k); });
+    g.stunned.forEach(i => { if (g.shipHp[i]===null) g.stunned.delete(i); });
   });
   sim.teamB.forEach(g => {
-    if (g.damageBuffer<=0) return; anyDmg=true;
-    const {raw,mitigated,shipsLost} = resolveBuffer(g, sim.teamB);
+    if (!Object.keys(g.dmgBuffer).length) return; anyDmg=true;
+    const {raw,mitigated,shipsLost,killedGroups} = resolveBuffers(g, all);
     log(`${g.name}: ${raw} raw → ${mitigated} dmg → −${shipsLost} ships (${g.currentCount} remain)`,'teamB');
+    killedGroups.forEach(k => { log(`  ☠ ${k.groupName} wiped`,'teamB',1); summaryData.kills.push(k); });
+    g.stunned.forEach(i => { if (g.shipHp[i]===null) g.stunned.delete(i); });
   });
 
   if (!anyDmg) log('No damage connected this turn.','neutral');
 
-  // Build summary rows
-  sim.teamA.forEach((g,i) => {
-    const before = snapA[i]?.before ?? g.maxCount;
-    summaryData.teamA.push({name:g.name, before, after:g.currentCount, lost: before-g.currentCount});
-  });
-  sim.teamB.forEach((g,i) => {
-    const before = snapB[i]?.before ?? g.maxCount;
-    summaryData.teamB.push({name:g.name, before, after:g.currentCount, lost: before-g.currentCount});
-  });
-  turnSummaries.unshift(summaryData); // newest first
+  sim.teamA.forEach((g,i) => { const b=snapA[i]?.before??g.maxCount; summaryData.teamA.push({name:g.name,before:b,after:g.currentCount,lost:b-g.currentCount}); });
+  sim.teamB.forEach((g,i) => { const b=snapB[i]?.before??g.maxCount; summaryData.teamB.push({name:g.name,before:b,after:g.currentCount,lost:b-g.currentCount}); });
+  turnSummaries.unshift(summaryData);
   renderSummaries();
 
   log(`Team A: ${sim.teamA.map(f=>f.toString()).join(', ')}`, 'teamA');
@@ -709,14 +745,13 @@ function runAftermath() {
 
   if (checkBattleEnd()) return;
 
-  if (sim.turn >= 100) {
+  if (sim.turn>=100) {
     logSep('STALEMATE','header-line');
-    log(`Battle reached 100 turns. STALEMATE declared.`, 'stalemate');
-    sim.active = false; updateUI(); return;
+    log('Battle reached 100 turns. STALEMATE declared.','stalemate');
+    sim.active=false; updateUI(); return;
   }
 
-  sim.phase = 'MID_TURN';
-  sim.midTurnUsed = false;
+  sim.phase='MID_TURN'; sim.midTurnUsed=false;
   updateUI();
   log('Aftermath resolved. Mid-turn ability window open.','neutral');
 }
@@ -726,57 +761,57 @@ function runAftermath() {
 // ═══════════════════════════════════════════════════════
 function useMidTurnAbilities() {
   if (!sim.active || sim.phase!=='MID_TURN') return;
-  logSep(`TURN ${sim.turn} — MID-TURN ABILITIES`, 'header-line');
-
+  logSep(`TURN ${sim.turn} — MID-TURN ABILITIES`,'header-line');
   const rows = document.querySelectorAll('#ability-rows .ability-row');
   if (!rows.length) { log('No abilities configured.','neutral'); }
 
-  rows.forEach((row, idx) => {
-    const atTeam    = row.querySelector('.mid-attacker').value;
-    const dmg       = parseFloat(row.querySelector('.mid-damage').value)||0;
-    const hitAll    = row.querySelector('.mid-hit-all').value==='yes';
-    const shipsHit  = Math.max(1, parseInt(row.querySelector('.mid-ships-hit').value)||1);
-    const undodge   = row.querySelector('.mid-undodgeable').value==='yes';
-    const spill     = row.querySelector('.mid-spillover').value==='yes';
-    const doRoll    = row.querySelector('.mid-roll').value==='yes';
+  rows.forEach((row,idx) => {
+    const atTeam  = row.querySelector('.mid-attacker').value;
+    const dmg     = parseFloat(row.querySelector('.mid-damage').value)||0;
+    const hitAll  = row.querySelector('.mid-hit-all')?.checked||false;
+    const shipsHit= Math.max(1,parseInt(row.querySelector('.mid-ships-hit').value)||1);
+    const undodge = row.querySelector('.mid-undodgeable')?.checked||false;
+    const spill   = row.querySelector('.mid-spillover')?.checked||false;
+    const doRoll  = row.querySelector('.mid-roll')?.checked||false;
+    const doStun  = row.querySelector('.mid-stun')?.checked||false;
+    const tgtName = row.querySelector('.mid-target').value;
 
     if (dmg<=0) { log(`Ability #${idx+1}: no damage, skipped.`,'neutral'); return; }
 
     const defenders = atTeam==='A' ? sim.teamB : sim.teamA;
+    const pool = buildTargetPool(defenders, tgtName);
     const hitsLabel = hitAll ? 'ALL' : String(shipsHit);
-    log(`[Ability #${idx+1}] Team ${atTeam} — ${hitsLabel} hits @ ${doRoll?'roll('+dmg+')':dmg} | undodgeable:${undodge?'Y':'N'} spillover:${spill?'Y':'N'}`, 'midturn');
+    log(`[Ability #${idx+1}] Team ${atTeam} — ${hitsLabel} hits @ ${doRoll?'roll('+dmg+')':dmg} | target:${tgtName||'random'}`,'midturn');
 
-    // Build target list — hitAll: shuffled snapshot (each ship hit exactly once)
-    //                     otherwise: N random picks from live weighted pool
-    let midTargets;
+    let tgts;
     if (hitAll) {
-      midTargets = shuffle(buildPool(defenders));
+      tgts = shuffle(pool);
     } else {
-      const pool = buildPool(defenders);
-      midTargets = [];
+      tgts=[];
       for (let h=0; h<shipsHit; h++) {
-        if (!pool.length) break;
-        midTargets.push(pool[Math.floor(Math.random()*pool.length)]);
+        // Rebuild live pool each pick so spillover kills don't eat hits
+        const livePool = buildShipPool(defenders.filter(g=>
+          !tgtName || tgtName==='random' ? g.isAlive() : g.name===tgtName && g.isAlive()
+        ));
+        if (!livePool.length) break;
+        tgts.push(livePool[Math.floor(Math.random()*livePool.length)]);
       }
     }
 
-    for (const target of midTargets) {
-      if (!target.isAlive()) continue;
-
-      const dodge = checkDodge(target, undodge);
-      if (dodge==='guaranteed') { log(`  ${target.name}: guar. dodge (${target.dodgePool} left)`,'neutral',1); }
-      else if (dodge==='evade') { log(`  ${target.name}: evaded`,'neutral',1); }
-      else {
-        const finalDmg = doRoll ? (()=>{
-          const min=5; return dmg<=min ? dmg : Math.floor(Math.random()*(dmg-min+1))+min;
-        })() : dmg;
-        const {final, shipsLost} = applyHit(target, finalDmg, spill, defenders);
-        log(`  Hit ${target.name} — ${final} dmg${shipsLost>0?' → '+shipsLost+' lost':''}`, 'midturn',1);
-      }
-    }
+    tgts.forEach(tgt => {
+      if (tgt.group.shipHp[tgt.shipIdx]===null) return;
+      const dodge = checkDodge(tgt, undodge);
+      if (dodge==='guaranteed') { log(`  ${tgt.group.name}#${tgt.shipIdx}: guar. dodge`,'neutral',1); return; }
+      if (dodge==='evade')      { log(`  ${tgt.group.name}#${tgt.shipIdx}: evaded`,'neutral',1); return; }
+      const finalDmg = doRoll ? (()=>{ const mn=5; return dmg<=mn?dmg:Math.floor(Math.random()*(dmg-mn+1))+mn; })() : dmg;
+      const {final,shipsLost,killedGroups} = applyHit(tgt, finalDmg, spill, defenders, doStun, `Team ${atTeam} ability`);
+      const stunNote = doStun&&!tgt.group.stunImmune?' ⚡stun':'';
+      log(`  Hit ${tgt.group.name}#${tgt.shipIdx} — ${final} dmg${shipsLost>0?' → '+shipsLost+' lost':''}${stunNote}`,'midturn',1);
+      killedGroups.forEach(k => log(`    ☠ ${k.groupName} wiped by ${k.killer}`,'midturn',2));
+    });
   });
 
-  sim.midTurnUsed = true;
+  sim.midTurnUsed=true;
   if (checkBattleEnd()) return;
   updateUI();
 }
@@ -784,9 +819,9 @@ function useMidTurnAbilities() {
 function skipMidTurn() {
   if (!sim.active || sim.phase!=='MID_TURN') return;
   log(`Mid-turn closed. Advancing to turn ${sim.turn+1}.`,'neutral');
-  sim.turn++;
-  sim.phase='ATTACK';
-  sim.midTurnUsed=false;
+  sim.turn++; sim.phase='ATTACK'; sim.midTurnUsed=false;
+  // Clear stuns from previous turn so next turn is fresh
+  [...sim.teamA,...sim.teamB].forEach(g => g.stunned = new Set([...g.stunned].filter(i => g.shipHp[i]!==null)));
   updateUI();
 }
 
@@ -794,39 +829,31 @@ function skipMidTurn() {
 //  BATTLE END
 // ═══════════════════════════════════════════════════════
 function checkBattleEnd() {
-  const aAlive = sim.teamA.some(g=>g.isAlive());
-  const bAlive = sim.teamB.some(g=>g.isAlive());
-  if (aAlive && bAlive) return false;
-
+  const aAlive=sim.teamA.some(g=>g.isAlive()), bAlive=sim.teamB.some(g=>g.isAlive());
+  if (aAlive&&bAlive) return false;
   logSep('BATTLE CONCLUDED','header-line');
   log(`Team A: ${sim.teamA.map(f=>f.toString()).join(', ')}`, 'teamA');
   log(`Team B: ${sim.teamB.map(f=>f.toString()).join(', ')}`, 'teamB');
-  if (aAlive && !bAlive)      log('VICTORY — TEAM A','victory');
-  else if (!aAlive && bAlive) log('VICTORY — TEAM B','defeat');
-  else                        log('MUTUAL DESTRUCTION — DRAW','draw');
-
+  if (aAlive&&!bAlive)       log('VICTORY — TEAM A','victory');
+  else if (!aAlive&&bAlive)  log('VICTORY — TEAM B','defeat');
+  else                       log('MUTUAL DESTRUCTION — DRAW','draw');
   sim.active=false; updateUI(); return true;
 }
 
 // ═══════════════════════════════════════════════════════
-//  TURN SUMMARY RENDER
+//  TURN SUMMARY
 // ═══════════════════════════════════════════════════════
 function renderSummaries() {
   const sec = document.getElementById('summary-section');
-  sec.innerHTML = '';
-  // Only show last 5
-  const recent = turnSummaries.slice(0,5);
-  recent.forEach(s => {
-    const div = document.createElement('div');
-    div.className = 'turn-summary';
-    let rows = '';
-    s.teamA.forEach(r => {
-      rows += `<div class="summary-row"><span class="summary-a">${r.name}</span><span>${r.before} → ${r.after} <span style="color:var(--b)">(-${r.lost})</span></span></div>`;
-    });
-    s.teamB.forEach(r => {
-      rows += `<div class="summary-row"><span class="summary-b">${r.name}</span><span>${r.before} → ${r.after} <span style="color:var(--b)">(-${r.lost})</span></span></div>`;
-    });
-    div.innerHTML = `<h4>Turn ${s.turn} Summary &nbsp;<span style="color:var(--muted);font-size:.7rem">Raw dealt — A received: ${s.rawToA} / B received: ${s.rawToB}</span></h4>${rows}`;
+  sec.innerHTML='';
+  turnSummaries.slice(0,5).forEach(s => {
+    const div=document.createElement('div'); div.className='turn-summary';
+    let rows='';
+    s.teamA.forEach(r => rows+=`<div class="summary-row"><span class="summary-a">${r.name}</span><span>${r.before}→${r.after} <span style="color:var(--b)">(-${r.lost})</span></span></div>`);
+    s.teamB.forEach(r => rows+=`<div class="summary-row"><span class="summary-b">${r.name}</span><span>${r.before}→${r.after} <span style="color:var(--b)">(-${r.lost})</span></span></div>`);
+    let kills='';
+    if (s.kills&&s.kills.length) kills=s.kills.map(k=>`<div class="summary-row" style="color:var(--warn)">☠ ${k.groupName} wiped — final blow by ${k.killer}</div>`).join('');
+    div.innerHTML=`<h4>Turn ${s.turn} <span style="color:var(--muted);font-size:.7rem">// raw dealt — A rcvd:${s.rawToA} B rcvd:${s.rawToB}</span></h4>${rows}${kills}`;
     sec.appendChild(div);
   });
 }
@@ -835,54 +862,53 @@ function renderSummaries() {
 //  UI STATE
 // ═══════════════════════════════════════════════════════
 function updateUI() {
-  const phMap = {
-    SETUP:'ph-setup', PRE_BATTLE:'ph-prebattle',
-    ATTACK:'ph-attack', AFTERMATH:'ph-aftermath', MID_TURN:'ph-midturn'
-  };
-  const order = ['SETUP','PRE_BATTLE','ATTACK','AFTERMATH','MID_TURN'];
-  const cur = sim.active ? sim.phase : 'SETUP';
-  const ci = order.indexOf(cur);
-  order.forEach((p,i) => {
-    const el = document.getElementById(phMap[p]);
-    if (!el) return;
-    el.className='phase-step';
-    if (i<ci) el.classList.add('done');
-    else if (i===ci) el.classList.add('active');
-  });
+  const phMap={SETUP:'ph-setup',PRE_BATTLE:'ph-prebattle',ATTACK:'ph-attack',AFTERMATH:'ph-aftermath',MID_TURN:'ph-midturn'};
+  const order=['SETUP','PRE_BATTLE','ATTACK','AFTERMATH','MID_TURN'];
+  const cur=sim.active?sim.phase:'SETUP';
+  const ci=order.indexOf(cur);
+  order.forEach((p,i)=>{ const el=document.getElementById(phMap[p]); if(!el)return; el.className='phase-step'; if(i<ci)el.classList.add('done'); else if(i===ci)el.classList.add('active'); });
 
   const s=id=>document.getElementById(id).classList.remove('hidden');
   const h=id=>document.getElementById(id).classList.add('hidden');
   ['btn-start','btn-attack','btn-aftermath','btn-use-mid','btn-skip-mid','btn-change','btn-reset','mid-turn-panel','turn-badge','turn-counter'].forEach(h);
 
   if (!sim.active) { s('btn-start'); return; }
-
   s('btn-reset'); s('turn-badge'); s('turn-counter');
-  document.getElementById('turn-badge').textContent = `TURN ${sim.turn}`;
-  document.getElementById('turn-counter').textContent = `${sim.turn}/100`;
+  document.getElementById('turn-badge').textContent=`TURN ${sim.turn}`;
+  document.getElementById('turn-counter').textContent=`${sim.turn}/100`;
 
-  if (sim.phase==='ATTACK')    { s('btn-attack'); s('btn-change'); }
-  else if (sim.phase==='AFTERMATH') { s('btn-aftermath'); s('btn-change'); }
-  else if (sim.phase==='MID_TURN') {
+  if (sim.phase==='ATTACK')          { s('btn-attack'); s('btn-change'); }
+  else if (sim.phase==='AFTERMATH')  { s('btn-aftermath'); s('btn-change'); }
+  else if (sim.phase==='MID_TURN')   {
     s('mid-turn-panel'); s('btn-skip-mid'); s('btn-change');
     if (!sim.midTurnUsed) s('btn-use-mid');
+    populateMidTurnTargets();
     if (!document.getElementById('ability-rows').children.length) addAbilityRow();
   }
+}
+
+// Populate target dropdowns in mid-turn rows with current group names
+function populateMidTurnTargets() {
+  document.querySelectorAll('.mid-target').forEach(sel => {
+    const team = sel.closest('.ability-row')?.querySelector('.mid-attacker')?.value;
+    const defenders = team==='A' ? sim.teamB : sim.teamA;
+    const cur = sel.value;
+    sel.innerHTML = '<option value="random">Random</option>' +
+      defenders.filter(g=>g.isAlive()).map(g=>`<option value="${g.name}"${cur===g.name?' selected':''}>${g.name}</option>`).join('');
+  });
 }
 
 // ═══════════════════════════════════════════════════════
 //  EDIT STATS MODAL
 // ═══════════════════════════════════════════════════════
 function openEditModal() {
-  const body = document.getElementById('edit-modal-body');
-  body.innerHTML = '';
-  const mkCard = (sg, team, idx) => {
-    const card = document.createElement('div');
-    card.className='edit-card'; card.dataset.team=team; card.dataset.idx=idx;
-    card.innerHTML=`
-      <h4 style="color:${team==='A'?'var(--a)':'var(--b)'}">${sg.name}</h4>
+  const body=document.getElementById('edit-modal-body'); body.innerHTML='';
+  const mkCard=(sg,team,idx)=>{
+    const card=document.createElement('div'); card.className='edit-card'; card.dataset.team=team; card.dataset.idx=idx;
+    card.innerHTML=`<h4 style="color:${team==='A'?'var(--a)':'var(--b)'}">${sg.name}</h4>
       <div class="input-grid g4">
         <div class="field"><label>Count</label><input type="number" class="e-count" value="${sg.currentCount}"></div>
-        <div class="field"><label>HP/Ship</label><input type="number" class="e-hp" value="${sg.individualHp}"></div>
+        <div class="field"><label>HP/Ship</label><input type="number" class="e-hp" value="${sg.baseHp}"></div>
         <div class="field"><label>FP</label><input type="number" class="e-fp" value="${sg.fp}"></div>
         <div class="field"><label>Rolls</label><input type="number" class="e-rolls" value="${sg.numRolls}"></div>
         <div class="field"><label>Addon</label><input type="number" class="e-addon" value="${sg.rollAddon}"></div>
@@ -891,6 +917,16 @@ function openEditModal() {
         <div class="field"><label>Evasion %</label><input type="number" class="e-ev" value="${Math.round(sg.evasion*100)}"></div>
         <div class="field"><label>G.Dodges</label><input type="number" class="e-dodges" value="${sg.guaranteedDodges}"></div>
         <div class="field"><label>Counter %</label><input type="number" class="e-ctr" value="${Math.round(sg.counterChance*100)}"></div>
+        <div class="field"><label>Threat Tier</label><input type="number" class="e-tier" value="${sg.threatTier}"></div>
+      </div>
+      <div class="input-grid g2">
+        <div class="field"><label>Targeting Mode</label>
+          <select class="e-tmode">
+            <option value="none"${sg.targetingMode==='none'?' selected':''}>None (Random)</option>
+            <option value="weighted"${sg.targetingMode==='weighted'?' selected':''}>Weighted</option>
+            <option value="ordered"${sg.targetingMode==='ordered'?' selected':''}>Ordered</option>
+          </select>
+        </div>
       </div>`;
     return card;
   };
@@ -901,11 +937,18 @@ function openEditModal() {
 function closeEditModal() { document.getElementById('edit-modal').classList.add('hidden'); }
 function saveEditModal() {
   document.querySelectorAll('#edit-modal-body .edit-card').forEach(card=>{
-    const sg = card.dataset.team==='A' ? sim.teamA[+card.dataset.idx] : sim.teamB[+card.dataset.idx];
-    if (!sg) return;
-    const newCount = parseInt(card.querySelector('.e-count').value)||0;
-    sg.currentCount=newCount; sg.maxCount=newCount;
-    sg.individualHp=parseInt(card.querySelector('.e-hp').value)||0;
+    const sg=card.dataset.team==='A'?sim.teamA[+card.dataset.idx]:sim.teamB[+card.dataset.idx];
+    if(!sg)return;
+    const newCount=parseInt(card.querySelector('.e-count').value)||0;
+    const newHp=parseInt(card.querySelector('.e-hp').value)||0;
+    sg.baseHp=newHp; sg.maxCount=newCount;
+    // Rebuild shipHp: preserve existing ships' HP, add new ships at full HP
+    const alive=sg.aliveIndices;
+    const newArr=new Array(newCount).fill(null);
+    alive.slice(0,newCount).forEach((oldIdx,newIdx)=>{ newArr[newIdx]=sg.shipHp[oldIdx]; });
+    for(let i=alive.length;i<newCount;i++) newArr[i]=newHp;
+    sg.shipHp=newArr;
+    sg.stunned=new Set([...sg.stunned].filter(i=>i<newCount&&sg.shipHp[i]!==null));
     sg.fp=parseInt(card.querySelector('.e-fp').value)||0;
     sg.numRolls=parseInt(card.querySelector('.e-rolls').value)||0;
     sg.rollAddon=parseFloat(card.querySelector('.e-addon').value)||0;
@@ -913,13 +956,11 @@ function saveEditModal() {
     sg.damageMitigation=(parseInt(card.querySelector('.e-mit').value)||0)/100;
     sg.evasion=(parseInt(card.querySelector('.e-ev').value)||0)/100;
     sg.guaranteedDodges=parseInt(card.querySelector('.e-dodges').value)||0;
-    // NOTE: dodgePool NOT reset — permanent pool that drains, never refills
     sg.counterChance=(parseInt(card.querySelector('.e-ctr').value)||0)/100;
-    // NOTE: _dmgOnFront NOT reset — residual HP damage persists on reinforce
+    sg.threatTier=parseInt(card.querySelector('.e-tier').value)||0;
+    sg.targetingMode=card.querySelector('.e-tmode').value||'none';
   });
   log('— Stat adjustment applied —','system');
-  log(`Team A: ${sim.teamA.map(f=>f.toString()).join(', ')}`, 'teamA');
-  log(`Team B: ${sim.teamB.map(f=>f.toString()).join(', ')}`, 'teamB');
   closeEditModal(); checkBattleEnd();
 }
 
@@ -933,88 +974,114 @@ function doReset() {
   turnSummaries=[];
   document.getElementById('summary-section').innerHTML='';
   document.getElementById('ability-rows').innerHTML='';
-  clearLog();
-  log('Battle reset. Configure fleets and press Start Battle.','neutral');
+  clearLog(); log('Battle reset. Configure fleets and press Start Battle.','neutral');
   closeResetModal(); updateUI();
 }
 
 // ═══════════════════════════════════════════════════════
-//  SHIP CARD HTML
+//  SHIP CARD
 // ═══════════════════════════════════════════════════════
+function removeShipCard(btn) {
+  btn.closest('.ship-card').remove();
+  refreshAllTargetDropdowns();
+}
+function refreshAllTargetDropdowns() {
+  document.querySelectorAll('.sg-atarget').forEach(sel => {
+    const cardTeam = sel.closest('.ship-card')?.dataset.team;
+    if (!cardTeam) return;
+    const enemyTeam = cardTeam==='A'?'B':'A';
+    const cur = sel.value;
+    sel.innerHTML = '<option value="random">Random</option>';
+    document.querySelectorAll(`.ship-card[data-team="${enemyTeam}"] .name-input`).forEach(inp => {
+      if (inp.value.trim()) {
+        const o=document.createElement('option');
+        o.value=o.textContent=inp.value.trim();
+        if(cur===inp.value.trim()) o.selected=true;
+        sel.appendChild(o);
+      }
+    });
+  });
+}
 function addShipGroup(team) {
   cardCounter++;
-  const container = document.getElementById(`team-${team.toLowerCase()}-ships`);
-  const card = document.createElement('div');
+  const container=document.getElementById(`team-${team.toLowerCase()}-ships`);
+  const card=document.createElement('div');
   card.className='ship-card'; card.dataset.team=team;
-  const ac = team==='A'?'var(--a)':'var(--b)';
+  const ac=team==='A'?'var(--a)':'var(--b)';
   card.innerHTML=`
-    <button class="remove-btn" onclick="this.closest('.ship-card').remove()">✕</button>
+    <button class="remove-btn" onclick="removeShipCard(this)">✕</button>
     <div class="input-grid g1" style="margin-bottom:8px">
       <div class="field"><label>Group Name</label>
         <input type="text" class="name-input" placeholder="e.g. Corvette Squadron" style="border-color:${ac}44">
       </div>
     </div>
     <div class="input-grid g3">
-      <div class="field"><label><abbr title="Ship Count">Count</abbr></label><input type="number" class="sg-count" placeholder="0" min="0"></div>
-      <div class="field"><label><abbr title="HP per ship">HP</abbr></label><input type="number" class="sg-hp" placeholder="0" min="0"></div>
-      <div class="field"><label><abbr title="Firepower">FP</abbr></label><input type="number" class="sg-fp" placeholder="0" min="0"></div>
+      <div class="field"><label>Count</label><input type="number" class="sg-count" placeholder="0" min="0"></div>
+      <div class="field"><label>HP</label><input type="number" class="sg-hp" placeholder="0" min="0"></div>
+      <div class="field"><label>FP</label><input type="number" class="sg-fp" placeholder="0" min="0"></div>
     </div>
     <div class="input-grid g4">
       <div class="field"><label># Rolls</label><input type="number" class="sg-rolls" placeholder="1" min="0"></div>
-      <div class="field"><label>Roll Addon</label><input type="number" class="sg-addon" placeholder="0"></div>
-      <div class="field"><label>Roll Mult</label><input type="number" class="sg-mult" placeholder="1" step="0.01"></div>
+      <div class="field"><label>Addon</label><input type="number" class="sg-addon" placeholder="0"></div>
+      <div class="field"><label>Mult</label><input type="number" class="sg-mult" placeholder="1" step="0.01"></div>
       <div class="field"><label>Mit %</label><input type="number" class="sg-mit" placeholder="0" min="0" max="100"></div>
     </div>
-    <div class="input-grid g4">
+    <div class="input-grid g3">
       <div class="field"><label>Evasion %</label><input type="number" class="sg-ev" placeholder="0" min="0" max="100"></div>
       <div class="field"><label>G.Dodges</label><input type="number" class="sg-dodges" placeholder="0" min="0"></div>
       <div class="field"><label>Counter %</label><input type="number" class="sg-ctr" placeholder="0" min="0" max="100"></div>
-      <div class="field"><label><abbr title="Normal attacks cannot be dodged or evaded">Undodgeable</abbr></label>
-        <select class="sg-undodgeable">
-          <option value="no">No</option>
-          <option value="yes">Yes</option>
+    </div>
+    <div class="input-grid g2" style="margin-bottom:8px">
+      <div class="field"><label>Threat Tier <abbr title="Defender: 0=highest priority (tank), higher=backliner. Used by enemy targeting modes.">(?)</abbr></label>
+        <input type="number" class="sg-threat-tier" placeholder="0" min="0" value="0">
+      </div>
+      <div class="field"><label>Targeting Mode <abbr title="How this group picks targets. None=random weighted by count. Weighted=lower enemy tier = more likely. Ordered=must clear lowest tier before hitting others.">(?)</abbr></label>
+        <select class="sg-targeting-mode">
+          <option value="none">None (Random)</option>
+          <option value="weighted">Weighted</option>
+          <option value="ordered">Ordered</option>
         </select>
       </div>
+    </div>
+    <div class="input-grid gauto" style="grid-template-columns:repeat(auto-fill,minmax(130px,1fr))">
+      <div class="field"><label>Undodgeable</label>${mkToggle('sg-undodgeable','Undodgeable')}</div>
+      <div class="field"><label>Stun on Hit</label>${mkToggle('sg-stun-on-hit','Stun on Hit')}</div>
+      <div class="field"><label>Stun Immune</label>${mkToggle('sg-stun-immune','Stun Immune')}</div>
     </div>
     <div class="divider"></div>
     <div class="section-label">⚡ Pre-Battle / Opening Ability</div>
-    <div class="input-grid g5">
+    <div class="input-grid g3">
       <div class="field"><label>Damage</label><input type="number" class="sg-adm" placeholder="0" min="0"></div>
-      <div class="field"><label><abbr title="Leave 0 if using Hit All">Ships Hit</abbr></label><input type="number" class="sg-ash" placeholder="1" min="1"></div>
-      <div class="field"><label>Hit All</label>
-        <select class="sg-ahitall">
-          <option value="no">No</option>
-          <option value="yes">Yes — All</option>
-        </select>
-      </div>
-      <div class="field"><label>Undodgeable</label>
-        <select class="sg-aun">
-          <option value="no">No</option>
-          <option value="yes">Yes</option>
-        </select>
-      </div>
-      <div class="field"><label>Spillover</label>
-        <select class="sg-asp">
-          <option value="no">No</option>
-          <option value="yes">Yes</option>
-        </select>
+      <div class="field"><label>Ships Hit</label><input type="number" class="sg-ash" placeholder="1" min="1"></div>
+      <div class="field"><label>Target Group</label>
+        <select class="sg-atarget"><option value="random">Random</option></select>
       </div>
     </div>
-    <div class="input-grid g3">
-      <div class="field"><label><abbr title="Roll damage (min 5, max = Damage value) instead of flat">Roll Dmg</abbr></label>
-        <select class="sg-aroll">
-          <option value="no">No — Flat</option>
-          <option value="yes">Yes — Roll</option>
-        </select>
-      </div>
+    <div class="input-grid gauto" style="grid-template-columns:repeat(auto-fill,minmax(130px,1fr));margin-bottom:4px">
+      <div class="field"><label>Hit All</label>${mkToggle('sg-ahitall','Hit All')}</div>
+      <div class="field"><label>Undodgeable</label>${mkToggle('sg-aun','Undodgeable')}</div>
+      <div class="field"><label>Spillover</label>${mkToggle('sg-asp','Spillover')}</div>
+      <div class="field"><label>Roll Dmg</label>${mkToggle('sg-aroll','Roll Dmg')}</div>
+      <div class="field"><label>Stun on Hit</label>${mkToggle('sg-a-stun','Stun')}</div>
     </div>`;
+
+  // Populate target dropdown with enemy groups when teams exist
+  const enemyTeam = team==='A' ? 'B' : 'A';
+  const tgtSel = card.querySelector('.sg-atarget');
+  document.querySelectorAll(`.ship-card[data-team="${enemyTeam}"] .name-input`).forEach(inp => {
+    if (inp.value) { const o=document.createElement('option'); o.value=o.textContent=inp.value; tgtSel.appendChild(o); }
+  });
   container.appendChild(card);
 }
+
+// Refresh all target dropdowns when a group name changes
+document.addEventListener('input', e => { if (e.target.classList.contains('name-input')) refreshAllTargetDropdowns(); });
 
 function readCardConfig(card) {
   const v=cls=>card.querySelector(cls)?.value??'';
   const n=(cls,fb=0)=>parseFloat(v(cls))||fb;
   const i=(cls,fb=0)=>parseInt(v(cls))||fb;
+  const chk=cls=>card.querySelector(cls)?.checked||false;
   return {
     name:          v('.name-input')||`Group ${cardCounter}`,
     count:         i('.sg-count'),
@@ -1027,125 +1094,113 @@ function readCardConfig(card) {
     evasion:       i('.sg-ev')/100,
     dodges:        i('.sg-dodges'),
     counter:       i('.sg-ctr')/100,
-    undodgeable:   v('.sg-undodgeable')==='yes',
-    abilityDamage: i('.sg-adm'),
-    abilityShipsHit:i('.sg-ash',1),
-    abilityHitAll: v('.sg-ahitall')==='yes',
-    abilityUndodgeable: v('.sg-aun')==='yes',
-    abilitySpillover:   v('.sg-asp')==='yes',
-    abilityRoll:        v('.sg-aroll')==='yes',
+    undodgeable:   chk('.sg-undodgeable'),
+    stunOnHit:     chk('.sg-stun-on-hit'),
+    stunImmune:    chk('.sg-stun-immune'),
+    threatTier:    i('.sg-threat-tier', 0),
+    targetingMode: v('.sg-targeting-mode'),
+    abilityDamage:      i('.sg-adm'),
+    abilityShipsHit:    i('.sg-ash',1),
+    abilityTarget:      v('.sg-atarget'),
+    abilityHitAll:      chk('.sg-ahitall'),
+    abilityUndodgeable: chk('.sg-aun'),
+    abilitySpillover:   chk('.sg-asp'),
+    abilityRoll:        chk('.sg-aroll'),
+    abilityStun:        chk('.sg-a-stun'),
   };
 }
 
 // ═══════════════════════════════════════════════════════
-//  MID-TURN ROW
+//  MID-TURN ABILITY ROW
 // ═══════════════════════════════════════════════════════
 function addAbilityRow() {
-  const container = document.getElementById('ability-rows');
-  const row = document.createElement('div');
-  row.className='ability-row';
+  const container=document.getElementById('ability-rows');
+  const row=document.createElement('div'); row.className='ability-row';
   row.innerHTML=`
-    <div class="field" style="min-width:110px"><label>Attacker</label>
-      <select class="mid-attacker"><option value="A">Team A</option><option value="B">Team B</option></select>
+    <div class="field" style="min-width:100px"><label>Attacker</label>
+      <select class="mid-attacker" onchange="refreshMidTarget(this)">
+        <option value="A">Team A</option><option value="B">Team B</option>
+      </select>
+    </div>
+    <div class="field"><label>Target</label>
+      <select class="mid-target"><option value="random">Random</option></select>
     </div>
     <div class="field"><label>Damage</label><input type="number" class="mid-damage" placeholder="0" min="0"></div>
     <div class="field"><label>Ships Hit</label><input type="number" class="mid-ships-hit" placeholder="1" min="1"></div>
-    <div class="field"><label>Hit All</label>
-      <select class="mid-hit-all"><option value="no">No</option><option value="yes">Yes — All</option></select>
-    </div>
-    <div class="field"><label>Undodgeable</label>
-      <select class="mid-undodgeable"><option value="no">No</option><option value="yes">Yes</option></select>
-    </div>
-    <div class="field"><label>Spillover</label>
-      <select class="mid-spillover"><option value="no">No</option><option value="yes">Yes</option></select>
-    </div>
-    <div class="field"><label>Roll Dmg</label>
-      <select class="mid-roll"><option value="no">No — Flat</option><option value="yes">Yes — Roll</option></select>
-    </div>
+    <div class="field"><label>Hit All</label>${mkToggle('mid-hit-all','Hit All')}</div>
+    <div class="field"><label>Undodgeable</label>${mkToggle('mid-undodgeable','Undodgeable')}</div>
+    <div class="field"><label>Spillover</label>${mkToggle('mid-spillover','Spillover')}</div>
+    <div class="field"><label>Roll Dmg</label>${mkToggle('mid-roll','Roll Dmg')}</div>
+    <div class="field"><label>Stun</label>${mkToggle('mid-stun','Stun on Hit')}</div>
     <button class="row-remove" onclick="this.closest('.ability-row').remove()">✕</button>`;
   container.appendChild(row);
+  refreshMidTarget(row.querySelector('.mid-attacker'));
+}
+
+function refreshMidTarget(attackerSel) {
+  const row = attackerSel.closest('.ability-row');
+  const tgtSel = row.querySelector('.mid-target');
+  const defenders = attackerSel.value==='A' ? sim.teamB : sim.teamA;
+  const cur = tgtSel.value;
+  tgtSel.innerHTML='<option value="random">Random</option>';
+  defenders.filter(g=>g.isAlive()).forEach(g=>{
+    const o=document.createElement('option'); o.value=o.textContent=g.name;
+    if(cur===g.name) o.selected=true;
+    tgtSel.appendChild(o);
+  });
 }
 
 // ═══════════════════════════════════════════════════════
 //  SAVE / LOAD
 // ═══════════════════════════════════════════════════════
-const STORAGE_KEY = 'fcs_configs';
+const STORAGE_KEY='fcs_configs';
+function getConfigs(){try{return JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}')}catch{return {}}}
+function putConfigs(o){localStorage.setItem(STORAGE_KEY,JSON.stringify(o))}
 
-function getConfigs() {
-  try { return JSON.parse(localStorage.getItem(STORAGE_KEY)||'{}'); } catch { return {}; }
-}
-function putConfigs(obj) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(obj));
-}
-
-function saveConfig() {
-  const name = document.getElementById('save-name').value.trim();
-  if (!name) { alert('Enter a config name first.'); return; }
-
-  const cards = [];
-  document.querySelectorAll('.ship-card').forEach(card => {
-    const cfg = readCardConfig(card);
-    cfg._team = card.dataset.team;
-    cards.push(cfg);
-  });
-
-  const configs = getConfigs();
-  configs[name] = cards;
-  putConfigs(configs);
-  renderSlots();
-  document.getElementById('save-name').value='';
+function saveConfig(){
+  const name=document.getElementById('save-name').value.trim();
+  if(!name){alert('Enter a config name first.');return;}
+  const cards=[];
+  document.querySelectorAll('.ship-card').forEach(card=>{const cfg=readCardConfig(card);cfg._team=card.dataset.team;cards.push(cfg);});
+  const cfgs=getConfigs(); cfgs[name]=cards; putConfigs(cfgs);
+  renderSlots(); document.getElementById('save-name').value='';
 }
 
-function loadConfig(name) {
-  const configs = getConfigs();
-  const cards = configs[name];
-  if (!cards) return;
-
+function loadConfig(name){
+  const cards=getConfigs()[name]; if(!cards)return;
   document.getElementById('team-a-ships').innerHTML='';
   document.getElementById('team-b-ships').innerHTML='';
-
-  cards.forEach(cfg => {
+  cards.forEach(cfg=>{
     addShipGroup(cfg._team);
-    // Fill in the values to the last added card
-    const allCards = document.querySelectorAll(`.ship-card[data-team="${cfg._team}"]`);
-    const card = allCards[allCards.length-1];
-    const set = (cls, val) => { const el=card.querySelector(cls); if(el) el.value=val; };
-    set('.name-input', cfg.name);
-    set('.sg-count', cfg.count);
-    set('.sg-hp', cfg.hp);
-    set('.sg-fp', cfg.fp);
-    set('.sg-rolls', cfg.numRolls);
-    set('.sg-addon', cfg.rollAddon);
-    set('.sg-mult', cfg.rollMultiplier);
-    set('.sg-mit', Math.round(cfg.mitigation*100));
-    set('.sg-ev', Math.round(cfg.evasion*100));
-    set('.sg-dodges', cfg.dodges);
-    set('.sg-ctr', Math.round(cfg.counter*100));
-    set('.sg-undodgeable', cfg.undodgeable?'yes':'no');
-    set('.sg-adm', cfg.abilityDamage);
-    set('.sg-ash', cfg.abilityShipsHit);
-    set('.sg-ahitall', cfg.abilityHitAll?'yes':'no');
-    set('.sg-aun', cfg.abilityUndodgeable?'yes':'no');
-    set('.sg-asp', cfg.abilitySpillover?'yes':'no');
-    set('.sg-aroll', cfg.abilityRoll?'yes':'no');
+    const all=document.querySelectorAll(`.ship-card[data-team="${cfg._team}"]`);
+    const card=all[all.length-1];
+    const s=(cls,val)=>{const el=card.querySelector(cls);if(el)el.value=val;};
+    const sc=(cls,val)=>{const el=card.querySelector(cls);if(el)el.checked=!!val;};
+    s('.name-input',cfg.name); s('.sg-count',cfg.count); s('.sg-hp',cfg.hp); s('.sg-fp',cfg.fp);
+    s('.sg-rolls',cfg.numRolls); s('.sg-addon',cfg.rollAddon); s('.sg-mult',cfg.rollMultiplier);
+    s('.sg-mit',Math.round(cfg.mitigation*100)); s('.sg-ev',Math.round(cfg.evasion*100));
+    s('.sg-dodges',cfg.dodges); s('.sg-ctr',Math.round(cfg.counter*100));
+    sc('.sg-undodgeable',cfg.undodgeable); sc('.sg-stun-on-hit',cfg.stunOnHit); sc('.sg-stun-immune',cfg.stunImmune);
+    s('.sg-threat-tier',cfg.threatTier??0); s('.sg-targeting-mode',cfg.targetingMode||'none');
+    s('.sg-adm',cfg.abilityDamage); s('.sg-ash',cfg.abilityShipsHit); s('.sg-atarget',cfg.abilityTarget||'random');
+    sc('.sg-ahitall',cfg.abilityHitAll); sc('.sg-aun',cfg.abilityUndodgeable); sc('.sg-asp',cfg.abilitySpillover);
+    sc('.sg-aroll',cfg.abilityRoll); sc('.sg-a-stun',cfg.abilityStun);
   });
 }
 
-function deleteConfig(name) {
-  const configs = getConfigs();
-  delete configs[name];
-  putConfigs(configs);
-  renderSlots();
-}
+function deleteConfig(name){const c=getConfigs();delete c[name];putConfigs(c);renderSlots();}
 
-function renderSlots() {
-  const list = document.getElementById('slot-list');
-  list.innerHTML='';
-  const configs = getConfigs();
-  Object.keys(configs).forEach(name => {
-    const chip = document.createElement('div');
-    chip.className='slot-chip';
-    chip.innerHTML=`<button onclick="loadConfig(${JSON.stringify(name)})">${name}</button><button class="del-slot" onclick="deleteConfig(${JSON.stringify(name)})">✕</button>`;
+function renderSlots(){
+  const list=document.getElementById('slot-list'); list.innerHTML='';
+  Object.keys(getConfigs()).forEach(name=>{
+    const chip=document.createElement('div'); chip.className='slot-chip';
+    const loadBtn=document.createElement('button');
+    loadBtn.textContent=name;
+    loadBtn.addEventListener('click',()=>loadConfig(name));
+    const delBtn=document.createElement('button');
+    delBtn.textContent='✕'; delBtn.className='del-slot';
+    delBtn.addEventListener('click',()=>deleteConfig(name));
+    chip.appendChild(loadBtn); chip.appendChild(delBtn);
     list.appendChild(chip);
   });
 }
@@ -1153,12 +1208,7 @@ function renderSlots() {
 // ═══════════════════════════════════════════════════════
 //  INIT
 // ═══════════════════════════════════════════════════════
-window.onload = () => {
-  addShipGroup('A');
-  addShipGroup('B');
-  renderSlots();
-  updateUI();
-};
+window.onload = () => { addShipGroup('A'); addShipGroup('B'); renderSlots(); updateUI(); };
 </script>
 </body>
 </html>
