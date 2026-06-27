@@ -721,6 +721,10 @@ function runAftermath() {
   const snapB = sim.teamB.map(g=>({name:g.name, before:g.currentCount}));
   const all = [...sim.teamA,...sim.teamB];
 
+  // Snapshot counts before any resolution so spillover deaths are caught
+  const preResA = sim.teamA.map(g => ({g, before: g.currentCount}));
+  const preResB = sim.teamB.map(g => ({g, before: g.currentCount}));
+
   sim.teamA.forEach(g => {
     if (!Object.keys(g.dmgBuffer).length) return; anyDmg=true;
     const {raw,mitigated,shipsLost,killedGroups} = resolveBuffers(g, all, '', sim.teamA);
@@ -734,6 +738,18 @@ function runAftermath() {
     log(`${g.name}: ${raw} raw → ${mitigated} dmg → −${shipsLost} ships (${g.currentCount} remain)`,'teamB');
     killedGroups.forEach(k => { log(`  ☠ ${k.groupName} wiped`,'teamB',1); summaryData.kills.push(k); });
     g.stunned.forEach(i => { if (g.shipHp[i]===null) g.stunned.delete(i); });
+  });
+
+  // Second pass: report any groups killed purely by spillover (no dmgBuffer of their own)
+  [...preResA, ...preResB].forEach(({g, before}) => {
+    const lost = before - g.currentCount;
+    if (lost > 0 && !Object.keys(g.dmgBuffer).length) {
+      const teamType = sim.teamA.includes(g) ? 'teamA' : 'teamB';
+      anyDmg = true;
+      log(`${g.name}: spillover → −${lost} ships (${g.currentCount} remain)`, teamType);
+      if (g.isDestroyed()) log(`  ☠ ${g.name} wiped by spillover`, teamType, 1);
+      g.stunned.forEach(i => { if (g.shipHp[i]===null) g.stunned.delete(i); });
+    }
   });
 
   if (!anyDmg) log('No damage connected this turn.','neutral');
