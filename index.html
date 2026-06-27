@@ -482,7 +482,8 @@ function applyHit(tgt, rawDmg, spillover, allGroups, stun=false, attackerName=''
 // ═══════════════════════════════════════════════════════
 //  RESOLVE BUFFERS (aftermath — per-ship damage)
 // ═══════════════════════════════════════════════════════
-function resolveBuffers(group, allGroups, attackerName='') {
+function resolveBuffers(group, allGroups, attackerName='', ownTeam=null) {
+  // ownTeam: the array of groups on the same side as `group` (spillover stays on this side)
   let raw=0, mitigated=0, shipsLost=0;
   const killedGroups = [];
 
@@ -503,9 +504,11 @@ function resolveBuffers(group, allGroups, attackerName='') {
       shipsLost++;
       if (group.isDestroyed()) killedGroups.push({groupName:group.name, killer:lastAttacker||attackerName});
       if (dmgLeft > 0) {
-        const next = pickShip(buildShipPool(allGroups));
+        // Spillover stays within the same team
+        const spillTargets = ownTeam ? ownTeam : allGroups;
+        const next = pickShip(buildShipPool(spillTargets));
         if (next) {
-          const r = applyHit(next, dmgLeft / Math.max(0.01, 1-next.group.damageMitigation), true, allGroups, false, attackerName);
+          const r = applyHit(next, dmgLeft / Math.max(0.01, 1-next.group.damageMitigation), true, spillTargets, false, attackerName);
           shipsLost += r.shipsLost;
           killedGroups.push(...r.killedGroups);
         }
@@ -720,14 +723,14 @@ function runAftermath() {
 
   sim.teamA.forEach(g => {
     if (!Object.keys(g.dmgBuffer).length) return; anyDmg=true;
-    const {raw,mitigated,shipsLost,killedGroups} = resolveBuffers(g, all);
+    const {raw,mitigated,shipsLost,killedGroups} = resolveBuffers(g, all, '', sim.teamA);
     log(`${g.name}: ${raw} raw → ${mitigated} dmg → −${shipsLost} ships (${g.currentCount} remain)`,'teamA');
     killedGroups.forEach(k => { log(`  ☠ ${k.groupName} wiped`,'teamA',1); summaryData.kills.push(k); });
     g.stunned.forEach(i => { if (g.shipHp[i]===null) g.stunned.delete(i); });
   });
   sim.teamB.forEach(g => {
     if (!Object.keys(g.dmgBuffer).length) return; anyDmg=true;
-    const {raw,mitigated,shipsLost,killedGroups} = resolveBuffers(g, all);
+    const {raw,mitigated,shipsLost,killedGroups} = resolveBuffers(g, all, '', sim.teamB);
     log(`${g.name}: ${raw} raw → ${mitigated} dmg → −${shipsLost} ships (${g.currentCount} remain)`,'teamB');
     killedGroups.forEach(k => { log(`  ☠ ${k.groupName} wiped`,'teamB',1); summaryData.kills.push(k); });
     g.stunned.forEach(i => { if (g.shipHp[i]===null) g.stunned.delete(i); });
