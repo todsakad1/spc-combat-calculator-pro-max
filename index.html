@@ -447,7 +447,7 @@ function checkDodge(tgt, undodgeable) {
 //  APPLY HIT (immediate — abilities / mid-turn)
 //  tgt = {group, shipIdx}
 // ═══════════════════════════════════════════════════════
-function applyHit(tgt, rawDmg, spillover, allGroups, stun=false, attackerName='') {
+function applyHit(tgt, rawDmg, spillover, allGroups, stun=false, attackerName='', undodgeable=false) {
   const {group, shipIdx} = tgt;
   if (group.shipHp[shipIdx] === null) return {final:0, shipsLost:0, killedGroups:[]};
 
@@ -468,9 +468,16 @@ function applyHit(tgt, rawDmg, spillover, allGroups, stun=false, attackerName=''
       const nextPool = buildShipPool(allGroups);
       const next = pickShip(nextPool);
       if (next) {
-        const r = applyHit(next, dmgLeft / Math.max(0.01, 1-next.group.damageMitigation), true, allGroups, false, attackerName);
-        shipsLost += r.shipsLost;
-        killedGroups.push(...r.killedGroups);
+        const spillDodge = checkDodge(next, undodgeable);
+        if (spillDodge === 'guaranteed') {
+          // guaranteed dodge consumed
+        } else if (spillDodge === 'evade') {
+          // evaded
+        } else {
+          const r = applyHit(next, dmgLeft / Math.max(0.01, 1-next.group.damageMitigation), true, allGroups, false, attackerName, undodgeable);
+          shipsLost += r.shipsLost;
+          killedGroups.push(...r.killedGroups);
+        }
       }
     }
   } else {
@@ -492,6 +499,7 @@ function resolveBuffers(group, allGroups, attackerName='', ownTeam=null) {
     if (group.shipHp[idx] === null) continue;
     const bufRaw = typeof bufEntry === 'object' ? bufEntry.total : bufEntry;
     const lastAttacker = typeof bufEntry === 'object' ? bufEntry.lastAttacker : attackerName;
+    const bufUndodgeable = typeof bufEntry === 'object' ? (bufEntry.undodgeable||false) : false;
     raw += bufRaw;
     const mit = Math.max(0, Math.ceil(bufRaw * (1 - group.damageMitigation)));
     mitigated += mit;
@@ -508,9 +516,12 @@ function resolveBuffers(group, allGroups, attackerName='', ownTeam=null) {
         const spillTargets = ownTeam ? ownTeam : allGroups;
         const next = pickShip(buildShipPool(spillTargets));
         if (next) {
-          const r = applyHit(next, dmgLeft / Math.max(0.01, 1-next.group.damageMitigation), true, spillTargets, false, attackerName);
-          shipsLost += r.shipsLost;
-          killedGroups.push(...r.killedGroups);
+          const spillDodge = checkDodge(next, bufUndodgeable);
+          if (spillDodge !== 'guaranteed' && spillDodge !== 'evade') {
+            const r = applyHit(next, dmgLeft / Math.max(0.01, 1-next.group.damageMitigation), true, spillTargets, false, attackerName, bufUndodgeable);
+            shipsLost += r.shipsLost;
+            killedGroups.push(...r.killedGroups);
+          }
         }
       }
     } else {
@@ -610,7 +621,7 @@ function firePreBattle(attackers, defenders) {
       if (dodge==='guaranteed') { log(`  ${tgt.group.name}#${tgt.shipIdx}: guar. dodge (${tgt.group.dodgePool} left)`,'neutral',1); continue; }
       if (dodge==='evade')      { log(`  ${tgt.group.name}#${tgt.shipIdx}: evaded`,'neutral',1); continue; }
       const dmg = atk.abilityRoll ? atk.rollAbilityDmg() : atk.abilityDamage;
-      const {final, shipsLost, killedGroups} = applyHit(tgt, dmg, atk.abilitySpillover, defenders, atk.abilityStun, atk.name);
+      const {final, shipsLost, killedGroups} = applyHit(tgt, dmg, atk.abilitySpillover, defenders, atk.abilityStun, atk.name, atk.abilityUndodgeable);
       const stunNote = atk.abilityStun && !tgt.group.stunImmune ? ' ⚡stun' : '';
       log(`  Hit ${tgt.group.name}#${tgt.shipIdx} — ${final} dmg${shipsLost>0?' → '+shipsLost+' lost':''}${stunNote}`,'special',1);
       killedGroups.forEach(k => log(`    ☠ ${k.groupName} wiped by ${k.killer}`,'special',2));
@@ -655,8 +666,8 @@ function runAttackPhase() {
         if (dodge==='evade')      { log(`  ${atk.name}→${tgt.group.name}#${tgt.shipIdx}: evaded`,'neutral',1); continue; }
 
         const raw = atk.rollAttack();
-        const _buf = tgt.group.dmgBuffer[tgt.shipIdx] || {total:0, lastAttacker:''};
-        _buf.total += raw; _buf.lastAttacker = atk.name;
+        const _buf = tgt.group.dmgBuffer[tgt.shipIdx] || {total:0, lastAttacker:'', undodgeable:false};
+        _buf.total += raw; _buf.lastAttacker = atk.name; _buf.undodgeable = _buf.undodgeable || atk.undodgeable;
         tgt.group.dmgBuffer[tgt.shipIdx] = _buf;
         enemyRawRef.v += raw;
 
@@ -823,7 +834,7 @@ function useMidTurnAbilities() {
       if (dodge==='guaranteed') { log(`  ${tgt.group.name}#${tgt.shipIdx}: guar. dodge`,'neutral',1); return; }
       if (dodge==='evade')      { log(`  ${tgt.group.name}#${tgt.shipIdx}: evaded`,'neutral',1); return; }
       const finalDmg = doRoll ? (()=>{ const mn=5; return dmg<=mn?dmg:Math.floor(Math.random()*(dmg-mn+1))+mn; })() : dmg;
-      const {final,shipsLost,killedGroups} = applyHit(tgt, finalDmg, spill, defenders, doStun, `Team ${atTeam} ability`);
+      const {final,shipsLost,killedGroups} = applyHit(tgt, finalDmg, spill, defenders, doStun, `Team ${atTeam} ability`, undodge);
       const stunNote = doStun&&!tgt.group.stunImmune?' ⚡stun':'';
       log(`  Hit ${tgt.group.name}#${tgt.shipIdx} — ${final} dmg${shipsLost>0?' → '+shipsLost+' lost':''}${stunNote}`,'midturn',1);
       killedGroups.forEach(k => log(`    ☠ ${k.groupName} wiped by ${k.killer}`,'midturn',2));
